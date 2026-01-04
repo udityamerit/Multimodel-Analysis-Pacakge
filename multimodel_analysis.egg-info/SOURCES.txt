@@ -1,0 +1,12 @@
+LICENSE
+MANIFEST.in
+README.md
+requirements.txt
+setup.py
+multimodel_analysis/__init__.py
+multimodel_analysis/multimodel.py
+multimodel_analysis.egg-info/PKG-INFO
+multimodel_analysis.egg-info/SOURCES.txt
+multimodel_analysis.egg-info/dependency_links.txt
+multimodel_analysis.egg-info/requires.txt
+multimodel_analysis.egg-info/top_level.txt

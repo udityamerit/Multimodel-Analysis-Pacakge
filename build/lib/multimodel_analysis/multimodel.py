@@ -152,9 +152,9 @@ class MultiModelClassifier:
         # Sort by Accuracy
         df = df.sort_values(by='Accuracy', ascending=False).reset_index(drop=True)
         
-        print(f"\n{'='*60}\n 📊 MODEL COMPARISON TABLE \n{'='*60}")
-        print(df)
-        print(f"{'='*60}\n")
+        # print(f"\n{'='*60}\n 📊 MODEL COMPARISON TABLE \n{'='*60}")
+        # print(df)
+        # print(f"{'='*60}\n")
         
         # Recommend Best Model
         best_model = df.iloc[0]
@@ -162,7 +162,7 @@ class MultiModelClassifier:
         print(f"   Accuracy: {best_model['Accuracy']:.4f} | F1 Score: {best_model['F1 Score']:.4f}")
         print(f"{'='*60}\n")
         
-        return None
+        return df
 
     def plot_confusion_matrices(self, models):
         """Plots confusion matrices for all models with different colors."""
@@ -233,7 +233,7 @@ class MultiModelClassifier:
 
         plt.figure(figsize=(14, 8))
         ax = sns.barplot(x='Model', y='Score', hue='Metric', data=df_plot, palette="viridis")
-        plt.title("Comprehensive Model Comparison", fontsize=18, pad=20, fontweight='bold')
+        plt.title("Comprehensive Model Comparison", fontsize=18, pad=20)
         plt.ylim(0, 1.1)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
         plt.xticks(rotation=45, ha='right')
@@ -312,7 +312,7 @@ class MultiModelRegressior:
         print(f"   R2 Score: {best_model['R2 Score']:.4f} | RMSE: {best_model['RMSE']:.4f}")
         print(f"{'='*60}\n")
         
-        return None
+        return df
 
     def plot_true_vs_predicted(self, models):
         """Plots True vs Predicted values for all models (Regression equivalent of Confusion Matrix)."""
@@ -337,7 +337,7 @@ class MultiModelRegressior:
             p2 = min(min(y_pred), min(self.y_test))
             axes[idx].plot([p1, p2], [p1, p2], 'k--', lw=2)
             
-            axes[idx].set_title(f'{name}\nR2: {r2:.2f} | RMSE: {rmse:.2f}', fontsize=14, fontweight='bold')
+            axes[idx].set_title(f'{name}\nR2: {r2:.2f} | RMSE: {rmse:.2f}', fontsize=14)
             axes[idx].set_xlabel('True Values')
             axes[idx].set_ylabel('Predicted Values')
             axes[idx].legend()
@@ -355,22 +355,15 @@ class MultiModelRegressior:
         self.plot_comparison(models)
 
     def plot_comparison(self, models):
-            """Plots comparison bar charts with values on top for Regression."""
-            model_names = [m[0] for m in models]
-            r2_scores = [m[4] for m in models]
-            
-            plt.figure(figsize=(10, 6))
-            ax = sns.barplot(x=model_names, y=r2_scores, palette='viridis')
-            plt.title("Regressor R2 Score Comparison", pad=20, fontweight='bold')
-            plt.ylabel("R2 Score")
-            plt.xticks(rotation=45)
-            
-            # Add values on top of bars
-            for container in ax.containers:
-                ax.bar_label(container, fmt='%.2f', padding=3, fontsize=10)
-                
-            plt.tight_layout()
-            plt.show()
+        model_names = [m[0] for m in models]
+        r2_scores = [m[4] for m in models]
+        plt.figure(figsize=(10, 6))
+        sns.barplot(x=model_names, y=r2_scores, palette='viridis')
+        plt.title("Regressor R2 Score Comparison")
+        plt.ylabel("R2 Score")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.show()
 
 # =============================================================================
 #  SMART MAIN BLOCK: AUTOMATIC DETECTION
