@@ -3,6 +3,7 @@ import setuptools
 with open('README.md', 'r', encoding='utf-8') as fp:
     long_description = fp.read()
 
+
 with open('requirements.txt') as fp:
     requirements = fp.read().splitlines()
 
