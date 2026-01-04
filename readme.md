@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/multimodel_analysis.svg)](https://pypi.org/project/multimodel_analysis/)
 [![License: Apache](https://img.shields.io/badge/License-Apache-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**Multi-Model Analysis** is a comprehensive machine learning library created by **Uditya Narayan Tiwari**. It automates the process of training, evaluating, and visualizing multiple models for both Classification and Regression tasks.
+**multimodel_analysis** is a comprehensive machine learning library created by **Uditya Narayan Tiwari**. It automates the process of training, evaluating, and visualizing multiple models for both Classification and Regression tasks.
 
 Designed for data scientists and researchers, it streamlines model selection by providing automatic feature scaling, detailed performance metrics, and professional-grade visualizations in just a few lines of code.
 
