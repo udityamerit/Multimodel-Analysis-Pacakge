@@ -261,13 +261,12 @@ regressor.plot_comparison(results)
 
 **Uditya Narayan Tiwari**
 
-* Email: tiwarimerit@gmail.com
-* YouTube: [Kgp Talkie](https://youtube.com/kgptalkie)
 
 ## License
 
 This project is licensed under the MIT License.
 
 ```
+
 
 ```
