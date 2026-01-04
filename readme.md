@@ -1,39 +1,33 @@
-<!-- # Multi-Model Analysis
+# Multi-Model Analysis
 
-This Python package is created by **Uditya Narayan Tiwari**. It provides a robust framework to automatically train, evaluate, and visualize multiple machine learning models for both **Classification** and **Regression** problems in a single step.
+[![PyPI version](https://img.shields.io/pypi/v/multimodel_analysis.svg)](https://pypi.org/project/multimodel_analysis/)
+[![License: Apache](https://img.shields.io/badge/License-Apache-yellow.svg)](https://opensource.org/licenses/MIT)
 
-The package is designed to save time by automating the model selection process, featuring automatic data scaling, comprehensive metric reporting, and professional visualization of results.
+**Multi-Model Analysis** is a comprehensive machine learning library created by **Uditya Narayan Tiwari**. It automates the process of training, evaluating, and visualizing multiple models for both Classification and Regression tasks.
 
-## Installation
+Designed for data scientists and researchers, it streamlines model selection by providing automatic feature scaling, detailed performance metrics, and professional-grade visualizations in just a few lines of code.
 
-### Installation from PyPi
-You can install this package using pip as follows:
+---
+
+## 📦 Installation
+
+### Install via PyPI
+The easiest way to install the package is via pip:
 ```bash
 pip install multimodel_analysis
 
 ```
 
-### Installation from GitHub
+### Install from GitHub
 
-You can install the latest version directly from GitHub:
+To get the latest development version:
 
 ```bash
-pip install git+[https://github.com/udityamerit/multimodel_analysis.git](https://github.com/udityamerit/multimodel_analysis.git) --upgrade --force-reinstall
+pip install git+[https://github.com/udityamerit/multimodel_analysis.git](https://github.com/udityamerit/Multimodel-Analysis-Pacakge.git) --upgrade --force-reinstall
 
 ```
 
-### Uninstall the Package
-
-To uninstall the package, use the following command:
-
-```bash
-pip uninstall multimodel_analysis
-
-```
-
-### Requirements
-
-This package requires the following libraries:
+### 📋 Requirements
 
 * `numpy`
 * `pandas`
@@ -43,230 +37,146 @@ This package requires the following libraries:
 
 ---
 
-## How to Use the Package
+##  How to Use
 
-This package simplifies the workflow into three main steps: **Initialize**, **Run**, and **Visualize**.
+### 1. Classification Analysis
 
-### 1. Classification Problems
+Use `MultiModelClassifier` for categorical target variables. It automatically compares models like Logistic Regression, SVM, Decision Trees, Random Forest, Gradient Boosting, and more.
 
-Use the `MultiModelClassifier` to automatically compare models like Logistic Regression, SVM, Decision Trees, KNN, Naive Bayes, Random Forest, Gradient Boosting, and AdaBoost.
+#### Step 1: Initialize and Train
 
 ```python
 import pandas as pd
 from multimodel_analysis import MultiModelClassifier
 
-# 1. Load your dataset
-# Ensure your data is numeric or pre-encoded
-df = pd.read_csv('your_classification_dataset.csv')
+# Load your dataset
+df = pd.read_csv('your_classification_data.csv')
 X = df.drop('target_column', axis=1)
 y = df['target_column']
 
-# 2. Initialize the Classifier
-# scaled_data=True automatically applies StandardScaler to your features
-classifier = MultiModelClassifier(X, y, scaled_data=True)
+# Initialize the classifier
+# scaled_data=True applies StandardScaler automatically
+classifier = MultiModelClassifier(X, y, test_size=0.3, scaled_data=True)
 
-# 3. Run all models
-# This returns a list of results for all trained models
+# Train all models and get results
 results = classifier.run_all_models()
-
-# 4. Print Summary and Visualizations
-# Shows Accuracy, Precision, Recall, F1, AUC, Confusion Matrices, and ROC Curves
-classifier.get_summary(results)
-
-# 5. Compare Models visually
-# Plots a bar chart comparing all metrics across models
-classifier.plot_comparison(results)
 
 ```
 
-### 2. Regression Problems
+#### Step 2: View Metrics & Best Model
 
-Use the `MultiModelRegressior` to compare models like Linear Regression, Lasso, Ridge, SVR, Decision Trees, Random Forest, and Gradient Boosting.
+Generates a clean dataframe of metrics (Accuracy, Precision, Recall, F1, AUC) and prints the best recommendation.
 
 ```python
-import pandas as pd
-from multimodel_analysis import MultiModelClassifier
-
-# 1. Load your dataset
-# Ensure your data is numeric or pre-encoded
-df = pd.read_csv('https://raw.githubusercontent.com/udityamerit/MultiModel-Package-for-Machine-Learning/refs/heads/main/Dataset/diabetes.csv')
-X = df.drop('Outcome', axis=1)
-y = df['Outcome']
-
-# 2. Initialize the Regressor
-# scaled_data=True automatically applies StandardScaler to your features
-classifier = MultiModelClassifier(X, y, scaled_data=True)
-
-# 3. Run all models
-results = classifier.run_all_models()
-
-# 4. Print Summary
-# Shows MAE, MSE, RMSE, and R2 Scores for all models
-classifier.get_summary(results)
-
-# 5. Compare Models visually
-# Plots the R2 Score comparison
-classifier.plot_comparison(results)
-
-```
-
----
-
-## Features
-
-* **Automatic Scaling**: Includes a `scaled_data` flag to automatically handle feature standardization (StandardScaler) to ensure optimal performance for models like SVM and KNN.
-* **Comprehensive Metrics**:
-* **Classification**: Accuracy, Precision, Recall, F1-Score, and ROC-AUC.
-* **Regression**: MAE (Mean Absolute Error), MSE (Mean Squared Error), RMSE (Root Mean Squared Error), and R2 Score.
-
-
-* **Visualizations**: Generates professional Confusion Matrices, ROC Curves, and Comparative Bar Plots using `seaborn` and `matplotlib`.
-* **Model Variety**: Covers a wide range of algorithms from simple Linear/Logistic models to Ensemble methods like Random Forest and Gradient Boosting.
-
-## Author
-
-**Uditya Narayan Tiwari**
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details. -->
-
-
-# Multi-Model Analysis
-
-This Python package is created by **Uditya Narayan Tiwari**. It provides a robust framework to automatically train, evaluate, and visualize multiple machine learning models for both **Classification** and **Regression** problems.
-
-It includes features for **automatic best model recommendation**, colorful confusion matrices, and comprehensive performance plots.
-
-## Installation
-
-### Installation from PyPi
-```bash
-pip install multimodel_analysis
-
-```
-
-### Installation from GitHub
-
-```bash
-pip install git+[https://github.com/udityamerit/multimodel_analysis.git](https://github.com/udityamerit/multimodel_analysis.git) --upgrade --force-reinstall
-
-```
-
-### Requirements
-
-* `numpy`
-* `pandas`
-* `matplotlib`
-* `seaborn`
-* `scikit-learn`
-
----
-
-## How to Use the Package
-
-### 1. Classification Problems
-
-Use the `MultiModelClassifier` to compare models like Logistic Regression, SVM, Decision Trees, Random Forest, etc.
-
-```python
-import pandas as pd
-from multimodel_analysis import MultiModelClassifier
-
-# 1. Load Data
-df = pd.read_csv('classification_data.csv')
-X = df.drop('target', axis=1)
-y = df['target']
-
-# 2. Initialize & Run
-# scaled_data=True automatically handles feature scaling
-classifier = MultiModelClassifier(X, y, scaled_data=True)
-results = classifier.run_all_models()
-
-# 3. Get Tabular Report & Best Model Recommendation
-# Prints a clean table of Accuracy, Precision, Recall, F1, and AUC
-# Also prints the "⭐ BEST MODEL RECOMMENDATION"
 classifier.show_tabular_report(results)
 
-# 4. Visualize Confusion Matrices
-# Plots matrices for all models with different color palettes
+```
+
+#### Step 3: Visualize Confusion Matrices
+
+Plots confusion matrices for every trained model with distinct color palettes.
+
+```python
 classifier.plot_confusion_matrices(results)
 
-# 5. Plot ROC Curves
-# Overlays ROC curves for all models in a single plot
+```
+
+#### Step 4: Plot ROC Curves
+
+Overlays ROC curves for all models to compare Area Under the Curve (AUC) performance.
+
+```python
 classifier.plot_roc_curves(results)
 
-# 6. Compare Metrics
-# Plots a bar chart comparing Accuracy, Precision, Recall, and F1 across models
+```
+
+#### Step 5: Compare All Metrics
+
+Plots a grouped bar chart comparing Accuracy, Precision, Recall, and F1 Score.
+
+```python
 classifier.plot_comparison(results)
 
 ```
 
-### 2. Regression Problems
+---
 
-Use the `MultiModelRegressior` to compare models like Linear Regression, Lasso, Ridge, SVR, Random Forest, etc.
+### 2. Regression Analysis
+
+Use `MultiModelRegressior` for continuous target variables. It compares Linear Regression, Lasso, Ridge, SVR, Random Forest, Gradient Boosting, etc.
+
+#### Step 1: Initialize and Train
 
 ```python
-import pandas as pd
 from multimodel_analysis import MultiModelRegressior
 
-# 1. Load Data
-df = pd.read_csv('regression_data.csv')
-X = df.drop('target', axis=1)
-y = df['target']
+# Load your dataset
+df = pd.read_csv('your_regression_data.csv')
+X = df.drop('price', axis=1)
+y = df['price']
 
-# 2. Initialize & Run
-regressor = MultiModelRegressior(X, y, scaled_data=True)
+# Initialize the regressor
+regressor = MultiModelRegressior(X, y, test_size=0.3, scaled_data=True)
+
+# Train all models
 results = regressor.run_all_models()
 
-# 3. Get Tabular Report & Best Model Recommendation
-# Prints a clean table of MAE, MSE, RMSE, and R2 Score
-# Also prints the "⭐ BEST MODEL RECOMMENDATION"
+```
+
+#### Step 2: View Metrics & Best Model
+
+Generates a table of MAE, MSE, RMSE, and R2 Scores, and recommends the best model based on R2.
+
+```python
 regressor.show_tabular_report(results)
 
-# 4. Visualize True vs. Predicted Values
-# Plots scatter plots with ideal fit lines for every model
+```
+
+#### Step 3: True vs. Predicted Plots
+
+Visualizes the relationship between actual and predicted values with an ideal fit line.
+
+```python
 regressor.plot_true_vs_predicted(results)
 
 ```
 
+#### Step 4: Compare R2 Scores
+
+Plots a bar chart to easily identify the model with the highest R2 score.
+
 ```python
-# 5. Compare R2 Scores
-# Plots a bar chart comparing R2 scores across all models
 regressor.plot_comparison(results)
 
 ```
 
 ---
 
-## Features
+## Key Features
 
-### Classification Features
+### 🔹 Intelligent Automation
 
-* **`show_tabular_report()`**: Displays a sorted dataframe of metrics and prints the best model based on Accuracy.
-* **`plot_confusion_matrices()`**: Generates a grid of confusion matrices, cycling through colors (Blues, Greens, Oranges, Purples, etc.) for distinction.
-* **`plot_roc_curves()`**: Plots ROC curves for all models on a single graph to compare AUC performance.
+* **Automatic Scaling**: Simply set `scaled_data=True` to standardize your features using `StandardScaler` before training.
+* **Best Model Detection**: Automatically highlights the best performing model based on Accuracy (Classification) or R2 Score (Regression).
 
-### Regression Features
+### 🔹 Professional Visualizations
 
-* **`show_tabular_report()`**: Displays a sorted dataframe of errors/scores and prints the best model based on R2 Score.
-* **`plot_true_vs_predicted()`**: Generates scatter plots showing how close predicted values are to actual values.
+* **Colorful Confusion Matrices**: Automatically cycles through color maps (Blues, Greens, Oranges, etc.) for distinct model visualization.
+* **ROC Curve Overlays**: clean comparison of True Positive vs False Positive rates.
+* **Regression Fit Plots**: Scatter plots with diagonal reference lines to visually assess regression performance.
 
-### General Features
+### 🔹 Extensive Model Library
 
-* **Automatic Scaling**: Handles `StandardScaler` internally if `scaled_data=True` is passed.
-* **Model Variety**: Includes Linear models, SVMs, Decision Trees, Nearest Neighbors, and Ensemble methods (Random Forest, Gradient Boosting, AdaBoost).
+* **Classifiers**: Logistic Regression, SVM, Decision Tree, KNN, Naive Bayes, Random Forest, Gradient Boosting, AdaBoost.
+* **Regressors**: Linear Regression, Lasso, Ridge, SVR, Decision Tree, Random Forest, Gradient Boosting.
 
-## Author
+---
+
+## 👨‍💻 Author
 
 **Uditya Narayan Tiwari**
 
 
-## License
+## 📄 License
 
-This project is licensed under the MIT License.
-
-```
-
-
-```
+This project is licensed under the Apache 2.0 License - see the LICENSE file for details.
