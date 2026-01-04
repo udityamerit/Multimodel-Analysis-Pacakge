@@ -9,7 +9,7 @@ with open('requirements.txt') as fp:
 
 setuptools.setup(
     name='multimodel_analysis',      # Package name
-    version='0.0.2',                 # Initial version
+    version='0.0.3',                 # Initial version
     author='Uditya Narayan Tiwari',
     author_email='tiwarimerit@gmail.com',
     description='A Python Package for Automatic Multi-Model Analysis (Classification & Regression)',
