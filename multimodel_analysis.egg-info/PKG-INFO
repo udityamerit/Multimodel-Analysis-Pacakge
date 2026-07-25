@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: multimodel_analysis
-Version: 0.0.7
+Version: 0.1.0
 Summary: A Python Package for Automatic Multi-Model Analysis (Classification & Regression)
 Author: Uditya Narayan Tiwari
 Author-email: tiwarimerit@gmail.com
@@ -30,7 +30,7 @@ Dynamic: summary
 # MultiModel Analysis
 
 <p align="center">
-  <img src="multi_modelml.png" alt="MultiModel Analysis Banner" width="100%"/>
+  <img src="https://raw.githubusercontent.com/udityamerit/Multimodel-Analysis-Pacakge/main/multi_modelml.png" alt="MultiModel Analysis Banner" width="100%"/>
 </p>
 
 [![PyPI Version](https://img.shields.io/pypi/v/multimodel_analysis.svg)](https://pypi.org/project/multimodel-analysis/)
@@ -53,7 +53,8 @@ Dynamic: summary
 - [Quick Start Guide](#quick-start-guide)
   - [Classification Pipeline](#classification-pipeline)
   - [Regression Pipeline](#regression-pipeline)
-- [API Reference](#api-reference)
+- [API Reference & Complete Function List](#api-reference--complete-function-list)
+  - [Standalone Utility Functions](#standalone-utility-functions)
   - [MultiModelClassifier](#multimodelclassifier)
   - [MultiModelRegressor](#multimodelregressor)
 - [Evaluation Metrics](#evaluation-metrics)
@@ -73,6 +74,7 @@ Selecting an appropriate estimator for a given tabular dataset requires benchmar
 3. **Stratified Splitting**: Implements stratified train-test splits (`train_test_split`) for classification tasks to maintain target class proportions.
 4. **Fault-Tolerant Training**: Wraps individual model evaluations in isolated execution blocks to prevent full execution failure if a single estimator encounters a fitting exception.
 5. **Metric Calculation & Visualization**: Computes standardized evaluation metrics and renders diagnostic plots (Confusion Matrices, ROC Curves, Residual/Prediction Scatter plots, and Bar Charts).
+6. **Headless & File Exporting**: Supports saving report tables directly to CSV, Excel, HTML, or JSON, and saving plot charts to PNG files without requiring an interactive display window.
 
 ---
 
@@ -88,64 +90,51 @@ flowchart TD
     ScalingCheck -- Yes --> Scaler["StandardScaler (Preserves DataFrame Metadata)"]
     ScalingCheck -- No --> RawFeatures["Unscaled Features"]
     
-    Scaler --> Split["Train / Test Split (Stratified for Classification)"]
+    Scaler --> Split["train_test_split (Stratified for Classification)"]
     RawFeatures --> Split
     
-    Split --> TaskCheck{"Task Type"}
+    Split --> ModelExecution["Parallel Model Execution & Custom Models"]
     
-    TaskCheck -- Classification --> Classifiers["Fit 8 Classifier Estimators"]
-    TaskCheck -- Regression --> Regressors["Fit 7 Regressor Estimators"]
+    ModelExecution --> MetricsEngine["Metrics Engine & Diagnostic Evaluation"]
     
-    Classifiers --> ClassMetrics["Compute Metrics (Accuracy, Precision, Recall, F1, OVR ROC-AUC)"]
-    Regressors --> RegMetrics["Compute Metrics (MAE, MSE, RMSE, R2 Score)"]
-    
-    ClassMetrics --> Reports["Generate Tabular Reports & Diagnostics"]
-    RegMetrics --> Reports
-    
-    Reports --> Recommendation["Recommend Best Performing Model"]
+    MetricsEngine --> TabularReport["Tabular Report & Model Recommendation"]
+    MetricsEngine --> Visualizations["Visualizations (CM, ROC, Scatter, Bar Charts)"]
+    MetricsEngine --> FileExport["File Export (CSV, Excel, HTML, PNG plots)"]
 ```
 
 ---
 
 ## Supported Estimators
 
-### Classification (`MultiModelClassifier`)
-
+### Classification Estimators
 - Logistic Regression (`LogisticRegression`)
 - Support Vector Machine (`SVC`)
-- K-Nearest Neighbors Classifier (`KNeighborsClassifier`)
 - Decision Tree Classifier (`DecisionTreeClassifier`)
-- Random Forest Classifier (`RandomForestClassifier`)
+- K-Nearest Neighbors (`KNeighborsClassifier`)
 - Gaussian Naive Bayes (`GaussianNB`)
+- Random Forest Classifier (`RandomForestClassifier`)
 - Gradient Boosting Classifier (`GradientBoostingClassifier`)
 - AdaBoost Classifier (`AdaBoostClassifier`)
+- *Custom Estimators*: User-supplied scikit-learn compatible classifiers.
 
-### Regression (`MultiModelRegressor`)
-
+### Regression Estimators
 - Linear Regression (`LinearRegression`)
 - Lasso Regression (`Lasso`)
 - Ridge Regression (`Ridge`)
-- Support Vector Regression (`SVR`)
+- Support Vector Regressor (`SVR`)
 - Decision Tree Regressor (`DecisionTreeRegressor`)
 - Random Forest Regressor (`RandomForestRegressor`)
 - Gradient Boosting Regressor (`GradientBoostingRegressor`)
-
-*(Note: `MultiModelRegressior` is retained as an explicit alias for backwards compatibility).*
+- *Custom Estimators*: User-supplied scikit-learn compatible regressors.
 
 ---
 
 ## Installation
 
-### Stable Release from PyPI
+### Installation via PyPI (Recommended)
 
 ```bash
 pip install multimodel-analysis
-```
-
-To upgrade an existing installation to the latest version:
-
-```bash
-pip install --upgrade multimodel-analysis
 ```
 
 ### Installation from Source
@@ -162,7 +151,7 @@ pip install git+https://github.com/udityamerit/Multimodel-Analysis-Pacakge.git
 
 ```python
 import pandas as pd
-from multimodel_analysis import MultiModelClassifier
+from multimodel_analysis import MultiModelClassifier, save_report
 
 # 1. Prepare features and target variable
 df = pd.read_csv("dataset.csv")
@@ -176,19 +165,26 @@ classifier = MultiModelClassifier(
     test_size=0.3,
     scaled_data=True,
     random_state=42,
-    stratify=True
+    stratify=True,
+    n_jobs=-1
 )
 
-# 3. Train all classification models
+# 3. Train all classification models (including optional custom models)
 results = classifier.run_all_models()
 
 # 4. Display tabular performance report
-classifier.show_tabular_report(results)
+df_report = classifier.show_tabular_report(results, return_df=True)
 
-# 5. Render diagnostic figures
-classifier.plot_confusion_matrices(results)
-classifier.plot_roc_curves(results)
-classifier.plot_comparison(results)
+# 5. Export tabular report to disk
+save_report(df_report, "classification_report.csv")
+
+# 6. Render & save diagnostic figures
+classifier.plot_confusion_matrices(results, save_path="confusion_matrix.png")
+classifier.plot_roc_curves(results, save_path="roc_curve.png")
+classifier.plot_comparison(results, save_path="metrics_comparison.png")
+
+# Or run everything in one line:
+classifier.get_summary(results, save_prefix="clf_run")
 ```
 
 ---
@@ -210,7 +206,8 @@ regressor = MultiModelRegressor(
     y=y,
     test_size=0.3,
     scaled_data=True,
-    random_state=42
+    random_state=42,
+    n_jobs=-1
 )
 
 # 3. Train all regression models
@@ -219,14 +216,36 @@ results = regressor.run_all_models()
 # 4. Display tabular performance report
 regressor.show_tabular_report(results)
 
-# 5. Render diagnostic figures
-regressor.plot_true_vs_predicted(results)
-regressor.plot_comparison(results)
+# 5. Render & save diagnostic figures
+regressor.plot_true_vs_predicted(results, save_path="true_vs_pred.png")
+regressor.plot_comparison(results, save_path="r2_comparison.png")
+
+# Or run everything and export outputs in one line:
+regressor.get_summary(results, save_prefix="reg_run")
 ```
 
 ---
 
-## API Reference
+## API Reference & Complete Function List
+
+### Standalone Utility Functions
+
+#### `save_report(df, filepath)`
+Saves a model comparison DataFrame to disk. Automatically infers format from file extension.
+
+```python
+from multimodel_analysis import save_report
+
+save_report(df, "report.csv")   # Saves as CSV
+save_report(df, "report.xlsx")  # Saves as Excel Spreadsheet
+save_report(df, "report.html")  # Saves as HTML Table
+save_report(df, "report.json")  # Saves as JSON File
+```
+
+* **`df`** (*pandas.DataFrame*): Report DataFrame returned by `show_tabular_report(models, return_df=True)`.
+* **`filepath`** (*str*): Target file path with `.csv`, `.xlsx`, `.xls`, `.html`, `.htm`, or `.json` extension.
+
+---
 
 ### `MultiModelClassifier`
 
@@ -237,57 +256,43 @@ multimodel_analysis.MultiModelClassifier(
     test_size=0.3, 
     scaled_data=False, 
     random_state=42, 
-    stratify=True
+    stratify=True,
+    n_jobs=-1
 )
 ```
 
-#### Parameters
+#### Constructor Parameters
 
-- **`X`** : *pandas.DataFrame or numpy.ndarray of shape (n_samples, n_features)*  
-  The feature matrix.
-- **`y`** : *pandas.Series or numpy.ndarray of shape (n_samples,)*  
-  The target array containing discrete class labels (numerical or string types).
-- **`test_size`** : *float, default=0.3*  
-  The proportion of the dataset to include in the test split. Must be between `0.0` and `1.0`.
-- **`scaled_data`** : *bool, default=False*  
-  If `True`, fits and applies a `StandardScaler` to the training and test feature sets. Preserves DataFrame column names and indices when input is a pandas DataFrame.
-- **`random_state`** : *int, default=42*  
-  Seed used by the random number generator for reproducible train-test splitting and estimator initialization.
-- **`stratify`** : *bool, default=True*  
-  If `True`, performs stratified sampling during train-test splitting when target class counts allow it (minimum sample count per class >= 2).
+- **`X`** (*pandas.DataFrame or numpy.ndarray*): Feature matrix of shape `(n_samples, n_features)`.
+- **`y`** (*pandas.Series, pandas.DataFrame, or numpy.ndarray*): Target labels (binary or multiclass, numerical or string).
+- **`test_size`** (*float, default=0.3*): Proportion of dataset for test split (between `0.0` and `1.0`).
+- **`scaled_data`** (*bool, default=False*): Fits and applies `StandardScaler` to features while preserving DataFrame columns and index metadata.
+- **`random_state`** (*int, default=42*): Seed for train-test split and reproducible model initialization.
+- **`stratify`** (*bool, default=True*): Performs stratified splitting when class sample counts allow (`min_count >= 2`).
+- **`n_jobs`** (*int or None, default=-1*): Number of parallel CPU threads for estimators supporting `n_jobs`.
 
-#### Instance Attributes
+#### Complete Method List
 
-- **`X_train_scaled`** : Training feature set (scaled or unscaled).
-- **`X_test_scaled`** : Test feature set (scaled or unscaled).
-- **`y_train`** : Encoded training target array.
-- **`y_test`** : Encoded test target array.
-- **`label_encoder`** : Fitted `LabelEncoder` instance.
-- **`classes_`** : Original class names array.
+| Method | Parameters | Return Type | Description |
+|---|---|---|---|
+| **`run_all_models()`** | `custom_models: dict = None` | `list of tuple` | Fits all 8 built-in classifiers (plus optional custom estimators in `custom_models`). Returns a list of evaluation tuples. |
+| **`show_tabular_report()`** | `models: list, return_df: bool = False` | `pandas.DataFrame` or `None` | Displays a formatted comparison table sorted by Accuracy and recommends the best model. Returns a DataFrame if `return_df=True`. |
+| **`plot_confusion_matrices()`** | `models: list, save_path: str = None, show_plot: bool = True` | `None` | Plots confusion matrix heatmaps with original class labels for all models. Saves image if `save_path` is given. |
+| **`plot_roc_curves()`** | `models: list, save_path: str = None, show_plot: bool = True` | `None` | Plots combined binary or macro-average ROC curves with AUC scores. Saves image if `save_path` is given. |
+| **`plot_comparison()`** | `models: list, save_path: str = None, show_plot: bool = True` | `None` | Plots grouped bar charts comparing Accuracy, Precision, Recall, and F1 Score. Saves image if `save_path` is given. |
+| **`get_summary()`** | `models: list, save_prefix: str = None, show_plot: bool = True` | `None` | Executes the full reporting and plotting suite in one call. Auto-exports report CSV and PNG charts if `save_prefix` is set. |
+| **`save_report()`** | `df_or_filepath: Union[pd.DataFrame, str], filepath: str = None` | `None` | Instance method to save report to CSV/Excel/HTML/JSON. Can be called as `clf.save_report("report.csv")`. |
+| **`evaluate_model()`** | `model: estimator, X_test: array, y_true: array` | `tuple` | Evaluates a single trained model instance and returns its evaluation tuple `(report, matrix, accuracy, precision, recall, f1, fpr_dict, tpr_dict, roc_auc)`. |
 
-#### Methods
-
-- **`run_all_models()`**  
-  Fits all eight classification estimators. Returns a list of evaluation result tuples.  
-  *Returns*: `list of tuple`
-
-- **`show_tabular_report(models, return_df=False)`**  
-  Prints a formatted comparison table sorted by Accuracy and displays the best performing model recommendation.  
-  *Parameters*:  
-  - `models` (`list`): List of evaluated model tuples returned by `run_all_models()`.  
-  - `return_df` (`bool`, default=`False`): If `True`, returns the underlying `pandas.DataFrame`. Otherwise returns `None`.
-
-- **`plot_confusion_matrices(models)`**  
-  Renders heatmaps of confusion matrices for all evaluated models, displaying original class labels.
-
-- **`plot_roc_curves(models)`**  
-  Plots combined Receiver Operating Characteristic (ROC) curves and corresponding AUC metrics.
-
-- **`plot_comparison(models)`**  
-  Renders a comparative bar chart for Accuracy, Precision, Recall, and F1 Score across all models.
-
-- **`get_summary(models)`**  
-  Executes the full reporting and visualization suite (`show_tabular_report`, `plot_confusion_matrices`, `plot_roc_curves`, `plot_comparison`).
+#### Individual Model Methods
+- `clf.Logistic_model()` : Trains and evaluates Logistic Regression.
+- `clf.Support_vector_model()` : Trains and evaluates Support Vector Classifier.
+- `clf.DecisionTree_model()` : Trains and evaluates Decision Tree Classifier.
+- `clf.KNN_model()` : Trains and evaluates K-Nearest Neighbors.
+- `clf.Naive_Bayes_model()` : Trains and evaluates Gaussian Naive Bayes.
+- `clf.RandomForest_model()` : Trains and evaluates Random Forest Classifier.
+- `clf.GradientBoosting_model()` : Trains and evaluates Gradient Boosting Classifier.
+- `clf.AdaBoost_model()` : Trains and evaluates AdaBoost Classifier.
 
 ---
 
@@ -299,43 +304,46 @@ multimodel_analysis.MultiModelRegressor(
     y, 
     test_size=0.3, 
     scaled_data=False, 
-    random_state=42
+    random_state=42,
+    n_jobs=-1
 )
 ```
 
-#### Parameters
+#### Constructor Parameters
 
-- **`X`** : *pandas.DataFrame or numpy.ndarray of shape (n_samples, n_features)*  
-  The feature matrix.
-- **`y`** : *pandas.Series or numpy.ndarray of shape (n_samples,)*  
-  The target array containing continuous numerical values.
-- **`test_size`** : *float, default=0.3*  
-  The proportion of the dataset to include in the test split. Must be between `0.0` and `1.0`.
-- **`scaled_data`** : *bool, default=False*  
-  If `True`, applies `StandardScaler` to features, retaining column names if `X` is a DataFrame.
-- **`random_state`** : *int, default=42*  
-  Seed used by the random number generator for reproducible splitting.
+- **`X`** (*pandas.DataFrame or numpy.ndarray*): Feature matrix of shape `(n_samples, n_features)`.
+- **`y`** (*pandas.Series, pandas.DataFrame, or numpy.ndarray*): Continuous target values (automatically flattened if 2D single-column input).
+- **`test_size`** (*float, default=0.3*): Proportion of dataset for test split.
+- **`scaled_data`** (*bool, default=False*): Applies `StandardScaler` to features retaining DataFrame structure.
+- **`random_state`** (*int, default=42*): Seed for reproducible train-test split.
+- **`n_jobs`** (*int or None, default=-1*): Number of CPU threads for parallel regressors.
 
-#### Methods
+#### Complete Method List
 
-- **`run_all_models()`**  
-  Fits all seven regression estimators. Returns a list of evaluation result tuples.  
-  *Returns*: `list of tuple`
+| Method | Parameters | Return Type | Description |
+|---|---|---|---|
+| **`run_all_models()`** | `custom_models: dict = None` | `list of tuple` | Fits all 7 built-in regressors (plus optional custom regressors in `custom_models`). Returns a list of evaluation tuples. |
+| **`show_tabular_report()`** | `models: list, return_df: bool = False` | `pandas.DataFrame` or `None` | Displays a formatted comparison table sorted by R² Score (MAE, MSE, RMSE, R²) and recommends the best model. |
+| **`plot_true_vs_predicted()`** | `models: list, save_path: str = None, show_plot: bool = True` | `None` | Renders True vs Predicted scatter plots with identity line bounds. Saves image if `save_path` is given. |
+| **`plot_comparison()`** | `models: list, save_path: str = None, show_plot: bool = True` | `None` | Renders a comparative bar chart of R² Scores across evaluated regressor models. Saves image if `save_path` is given. |
+| **`get_summary()`** | `models: list, save_prefix: str = None, show_plot: bool = True` | `None` | Executes full tabular report and plotting pipeline. Auto-exports report CSV and PNG charts if `save_prefix` is set. |
+| **`save_report()`** | `df_or_filepath: Union[pd.DataFrame, str], filepath: str = None` | `None` | Instance method to save report to CSV/Excel/HTML/JSON. Can be called as `reg.save_report("report.csv")`. |
+| **`evaluate_model()`** | `model: estimator, X_test: array, y_true: array` | `tuple` | Evaluates a single trained regressor and returns `(mae, mse, rmse, r2, y_pred)`. |
 
-- **`show_tabular_report(models, return_df=False)`**  
-  Prints a formatted comparison table sorted by R² Score and displays the best model recommendation.  
-  *Parameters*:  
-  - `models` (`list`): List of evaluated model tuples returned by `run_all_models()`.  
-  - `return_df` (`bool`, default=`False`): If `True`, returns the underlying `pandas.DataFrame`. Otherwise returns `None`.
+#### Individual Model Methods
+- `reg.LinearRegression_model()` : Trains and evaluates Linear Regression.
+- `reg.Lasso_model()` : Trains and evaluates Lasso Regression.
+- `reg.Ridge_model()` : Trains and evaluates Ridge Regression.
+- `reg.SVR_model()` : Trains and evaluates Support Vector Regressor.
+- `reg.DecisionTree_model()` : Trains and evaluates Decision Tree Regressor.
+- `reg.RandomForest_model()` : Trains and evaluates Random Forest Regressor.
+- `reg.GradientBoosting_model()` : Trains and evaluates Gradient Boosting Regressor.
 
-- **`plot_true_vs_predicted(models)`**  
-  Renders scatter plots comparing ground-truth targets against model predictions with an ideal linear reference.
+---
 
-- **`plot_comparison(models)`**  
-  Renders a comparative bar chart of R² Scores across evaluated regressor models.
+### Class Aliases
 
-- **`get_summary(models)`**  
-  Executes the full reporting suite (`show_tabular_report`, `plot_true_vs_predicted`, `plot_comparison`).
+- **`MultiModelRegressior`**: Backward-compatibility alias for `MultiModelRegressor`.
 
 ---
 
@@ -347,7 +355,7 @@ multimodel_analysis.MultiModelRegressor(
 - **Precision (Weighted)**: $\sum_{c} w_c \cdot \frac{TP_c}{TP_c + FP_c}$
 - **Recall (Weighted)**: $\sum_{c} w_c \cdot \frac{TP_c}{TP_c + FN_c}$
 - **F1 Score (Weighted)**: $2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}}$
-- **ROC-AUC**: Computed using positive-class probabilities for binary tasks and One-vs-Rest (`ovr`) strategy for multiclass tasks.
+- **ROC-AUC**: Computed using positive-class probabilities for binary tasks and One-vs-Rest (`ovr`) weighted macro-strategy for multiclass tasks.
 
 ### Regression Metrics
 

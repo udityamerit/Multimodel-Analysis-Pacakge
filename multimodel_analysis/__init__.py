@@ -3,6 +3,14 @@
 from .multimodel import MultiModelClassifier
 from .multimodel import MultiModelRegressor
 from .multimodel import MultiModelRegressior
+from .multimodel import save_report
 
-__version__ = '0.0.7'
+__version__ = '0.1.0'
 __author__ = 'Uditya Narayan Tiwari'
+
+__all__ = [
+    'MultiModelClassifier',
+    'MultiModelRegressor',
+    'MultiModelRegressior',
+    'save_report',
+]
