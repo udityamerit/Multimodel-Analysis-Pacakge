@@ -51,27 +51,9 @@ Selecting an appropriate estimator for a given tabular dataset requires benchmar
 
 ## Design Architecture
 
-```mermaid
-flowchart TD
-    InputData["Input Dataset (X, y)"] --> DataPrep["Target & Feature Preprocessing"]
-    
-    DataPrep --> Encoder["LabelEncoder (Target Encoding)"]
-    Encoder --> ScalingCheck{"Feature Scaling Enabled?"}
-    
-    ScalingCheck -- Yes --> Scaler["StandardScaler (Preserves DataFrame Metadata)"]
-    ScalingCheck -- No --> RawFeatures["Unscaled Features"]
-    
-    Scaler --> Split["train_test_split (Stratified for Classification)"]
-    RawFeatures --> Split
-    
-    Split --> ModelExecution["Parallel Model Execution & Custom Models"]
-    
-    ModelExecution --> MetricsEngine["Metrics Engine & Diagnostic Evaluation"]
-    
-    MetricsEngine --> TabularReport["Tabular Report & Model Recommendation"]
-    MetricsEngine --> Visualizations["Visualizations (CM, ROC, Scatter, Bar Charts)"]
-    MetricsEngine --> FileExport["File Export (CSV, Excel, HTML, PNG plots)"]
-```
+<p align="center">
+  <img src="https://raw.githubusercontent.com/udityamerit/Multimodel-Analysis-Pacakge/main/architecture_diagram.png" alt="MultiModel Analysis Architecture Diagram" width="100%"/>
+</p>
 
 ---
 
