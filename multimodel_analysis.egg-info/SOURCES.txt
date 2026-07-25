@@ -1,6 +1,8 @@
 LICENSE
 MANIFEST.in
 README.md
+architecture_diagram.png
+multi_modelml.png
 requirements.txt
 setup.py
 multimodel_analysis/__init__.py
