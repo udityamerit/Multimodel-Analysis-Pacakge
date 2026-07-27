@@ -8,6 +8,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/multimodel_analysis.svg)](https://pypi.org/project/multimodel-analysis/)
 [![Downloads Per Month](https://img.shields.io/pypi/dm/multimodel-analysis.svg?label=downloads%2Fmonth)](https://pypi.org/project/multimodel-analysis/)
 [![Total Downloads](https://pepy.tech/badge/multimodel-analysis)](https://pepy.tech/project/multimodel-analysis)
+[![Documentation](https://img.shields.io/badge/Documentation-Live-2563EB?style=flat&logo=githubpages&logoColor=white)](https://udityamerit.github.io/Multimodel-Analysis-Pacakge-Documentation/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Framework](https://img.shields.io/badge/Built%20With-Scikit--Learn-orange)](https://scikit-learn.org/)
 
