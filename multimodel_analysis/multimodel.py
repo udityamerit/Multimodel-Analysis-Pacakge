@@ -62,12 +62,16 @@ def _apply_plot_style():
             yield
 
 
-def save_report(df: pd.DataFrame, filepath: str) -> None:
-    """Saves a comparison tabular report DataFrame to CSV, Excel, or HTML based on extension."""
-    if df is None or df.empty:
+def save_report(df: Optional[pd.DataFrame] = None, filepath: str = "report.csv") -> None:
+    """Saves a comparison tabular report DataFrame to CSV, Excel, HTML, or JSON based on extension."""
+    if df is None:
+        _safe_print("[WARNING] No DataFrame provided to save_report.")
+        return
+    if df.empty:
         _safe_print("[WARNING] Empty DataFrame provided to save_report.")
         return
 
+    filepath = filepath if filepath else "report.csv"
     ext = os.path.splitext(filepath)[1].lower()
     if ext == '.csv':
         df.to_csv(filepath, index=False)
@@ -87,21 +91,26 @@ class _BaseMultiModel:
 
     def __init__(
         self,
-        X: Union[pd.DataFrame, np.ndarray],
-        y: Union[pd.Series, pd.DataFrame, np.ndarray],
+        X: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        y: Optional[Union[pd.Series, pd.DataFrame, np.ndarray]] = None,
         test_size: float = 0.3,
         scaled_data: bool = False,
-        random_state: int = 42,
+        random_state: Optional[int] = 42,
         n_jobs: Optional[int] = -1
     ):
+        if X is None or y is None:
+            raise ValueError("Both features 'X' and target 'y' must be provided to initialize MultiModel.")
+        
         self.X = X
         self.y_raw = y
         self.test_size = test_size
         self.scaled_data = scaled_data
         self.random_state = random_state
         self.n_jobs = n_jobs
+        self.models_ = []
+        self._last_df_report = None
 
-        # Target flattening (raveling) - fixes Bug 5
+        # Target flattening (raveling)
         if isinstance(y, (pd.Series, pd.DataFrame)):
             self.y_flat = y.values.ravel()
         else:
@@ -142,19 +151,26 @@ class _BaseMultiModel:
         else:
             plt.close(fig)
 
-    def save_report(self, df_or_filepath: Union[pd.DataFrame, str], filepath: Optional[str] = None) -> None:
+    def save_report(self, df_or_filepath: Optional[Union[pd.DataFrame, str]] = None, filepath: Optional[str] = None) -> None:
         """
         Saves tabular report to CSV/Excel/HTML/JSON.
         Can be called as:
           - save_report(df, "metrics.csv")           [standalone function]
           - model.save_report(df, "metrics.csv")     [method on classifier/regressor instance]
           - model.save_report("metrics.csv")         [method using auto-stored report DataFrame]
+          - model.save_report()                      [method using auto-stored report DataFrame and default path 'report.csv']
         """
-        if isinstance(df_or_filepath, str):
+        if df_or_filepath is None:
+            target_df = getattr(self, '_last_df_report', None)
+            target_path = filepath if filepath else "report.csv"
+            if target_df is None:
+                _safe_print("[WARNING] No previous tabular report DataFrame found. Run show_tabular_report() first or pass a DataFrame.")
+                return
+        elif isinstance(df_or_filepath, str):
             target_path = df_or_filepath
             target_df = getattr(self, '_last_df_report', None)
             if target_df is None:
-                _safe_print("[WARNING] No previous tabular report DataFrame found. Run show_tabular_report(models) first or pass a DataFrame.")
+                _safe_print("[WARNING] No previous tabular report DataFrame found. Run show_tabular_report() first or pass a DataFrame.")
                 return
         else:
             target_df = df_or_filepath
@@ -162,6 +178,14 @@ class _BaseMultiModel:
 
         save_report(target_df, target_path)
 
+    def _resolve_models(self, models: Optional[List[Tuple]] = None) -> List[Tuple]:
+        """Resolves models list; if omitted, uses self.models_ or auto-runs run_all_models()."""
+        if models is not None and len(models) > 0:
+            return models
+        if hasattr(self, 'models_') and self.models_:
+            return self.models_
+        _safe_print("[INFO] No models provided. Automatically running all models...")
+        return self.run_all_models()
 
 
 class MultiModelClassifier(_BaseMultiModel):
@@ -171,11 +195,11 @@ class MultiModelClassifier(_BaseMultiModel):
 
     def __init__(
         self,
-        X: Union[pd.DataFrame, np.ndarray],
-        y: Union[pd.Series, pd.DataFrame, np.ndarray],
+        X: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        y: Optional[Union[pd.Series, pd.DataFrame, np.ndarray]] = None,
         test_size: float = 0.3,
         scaled_data: bool = False,
-        random_state: int = 42,
+        random_state: Optional[int] = 42,
         stratify: bool = True,
         n_jobs: Optional[int] = -1
     ):
@@ -199,7 +223,17 @@ class MultiModelClassifier(_BaseMultiModel):
 
         self._split_and_scale(self.y_encoded, stratify_y=stratify_y)
 
-    def evaluate_model(self, model: Any, X_test: Any, y_true: np.ndarray):
+    def evaluate_model(
+        self,
+        model: Any,
+        X_test: Optional[Any] = None,
+        y_true: Optional[np.ndarray] = None
+    ):
+        if X_test is None:
+            X_test = self.X_test_scaled
+        if y_true is None:
+            y_true = self.y_test
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             predicted = model.predict(X_test)
@@ -240,7 +274,7 @@ class MultiModelClassifier(_BaseMultiModel):
                 pass
 
         fpr_dict, tpr_dict = {}, {}
-        roc_auc = np.nan  # Fix Bug 2: Default to np.nan instead of misleading 0.5
+        roc_auc = np.nan
 
         if y_pred_proba is not None:
             try:
@@ -254,11 +288,9 @@ class MultiModelClassifier(_BaseMultiModel):
                     fpr_dict['binary'] = fpr
                     tpr_dict['binary'] = tpr
                 else:
-                    # Multiclass ROC AUC calculation (Fix Bug 1)
                     roc_auc = roc_auc_score(y_true, y_pred_proba, multi_class='ovr', average='weighted')
                     y_true_bin = label_binarize(y_true, classes=np.arange(self.n_classes_))
 
-                    # Compute per-class and macro-average ROC curves
                     all_fpr = []
                     all_tpr = []
                     for i in range(self.n_classes_):
@@ -283,58 +315,104 @@ class MultiModelClassifier(_BaseMultiModel):
 
         return report, matrix, accuracy, precision, recall, f1, fpr_dict, tpr_dict, roc_auc
 
-    def Logistic_model(self):
-        model = LogisticRegression(random_state=self.random_state, max_iter=1000, n_jobs=self.n_jobs)
+    def Logistic_model(
+        self,
+        random_state: Optional[int] = None,
+        max_iter: int = 1000,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = LogisticRegression(random_state=rs, max_iter=max_iter, n_jobs=self.n_jobs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def Support_vector_model(self):
-        svc = SVC(kernel='linear', probability=True, random_state=self.random_state)
+    def Support_vector_model(
+        self,
+        random_state: Optional[int] = None,
+        kernel: str = 'linear',
+        probability: bool = True,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        svc = SVC(kernel=kernel, probability=probability, random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             svc.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(svc, self.X_test_scaled, self.y_test)
 
-    def DecisionTree_model(self):
-        model = DecisionTreeClassifier(random_state=self.random_state)
+    def DecisionTree_model(
+        self,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = DecisionTreeClassifier(random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def KNN_model(self):
-        n_neighbors = min(10, max(1, len(self.y_train) - 1))
-        model = KNeighborsClassifier(n_neighbors=n_neighbors, n_jobs=self.n_jobs)
+    def KNN_model(
+        self,
+        n_neighbors: Optional[int] = None,
+        **kwargs
+    ):
+        kwargs.pop('random_state', None)
+        if n_neighbors is None:
+            n_neighbors = min(10, max(1, len(self.y_train) - 1))
+        model = KNeighborsClassifier(n_neighbors=n_neighbors, n_jobs=self.n_jobs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def Naive_Bayes_model(self):
-        model = GaussianNB()
+    def Naive_Bayes_model(
+        self,
+        **kwargs
+    ):
+        kwargs.pop('random_state', None)
+        model = GaussianNB(**kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def RandomForest_model(self):
-        model = RandomForestClassifier(n_estimators=100, random_state=self.random_state, n_jobs=self.n_jobs)
+    def RandomForest_model(
+        self,
+        n_estimators: int = 100,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = RandomForestClassifier(n_estimators=n_estimators, random_state=rs, n_jobs=self.n_jobs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def GradientBoosting_model(self):
-        model = GradientBoostingClassifier(n_estimators=100, random_state=self.random_state)
+    def GradientBoosting_model(
+        self,
+        n_estimators: int = 100,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = GradientBoostingClassifier(n_estimators=n_estimators, random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def AdaBoost_model(self):
-        model = AdaBoostClassifier(n_estimators=50, random_state=self.random_state)
+    def AdaBoost_model(
+        self,
+        n_estimators: int = 50,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = AdaBoostClassifier(n_estimators=n_estimators, random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
@@ -342,17 +420,18 @@ class MultiModelClassifier(_BaseMultiModel):
 
     def run_all_models(
         self,
-        custom_models: Optional[Dict[str, Any]] = None
+        custom_models: Optional[Dict[str, Any]] = None,
+        random_state: Optional[int] = None
     ) -> List[Tuple]:
         model_methods = [
-            ('Logistic Regression', self.Logistic_model),
-            ('SVM', self.Support_vector_model),
-            ('Decision Tree', self.DecisionTree_model),
-            ('KNN', self.KNN_model),
-            ('Naive Bayes', self.Naive_Bayes_model),
-            ('Random Forest', self.RandomForest_model),
-            ('Gradient Boosting', self.GradientBoosting_model),
-            ('AdaBoost', self.AdaBoost_model)
+            ('Logistic Regression', lambda: self.Logistic_model(random_state=random_state)),
+            ('SVM', lambda: self.Support_vector_model(random_state=random_state)),
+            ('Decision Tree', lambda: self.DecisionTree_model(random_state=random_state)),
+            ('KNN', lambda: self.KNN_model(random_state=random_state)),
+            ('Naive Bayes', lambda: self.Naive_Bayes_model(random_state=random_state)),
+            ('Random Forest', lambda: self.RandomForest_model(random_state=random_state)),
+            ('Gradient Boosting', lambda: self.GradientBoosting_model(random_state=random_state)),
+            ('AdaBoost', lambda: self.AdaBoost_model(random_state=random_state))
         ]
 
         models = []
@@ -374,10 +453,12 @@ class MultiModelClassifier(_BaseMultiModel):
                 except Exception as e:
                     _safe_print(f"[WARNING] Custom model '{name}' failed: {e}")
 
+        self.models_ = models
         return models
 
-    def show_tabular_report(self, models: List[Tuple], return_df: bool = False) -> Optional[pd.DataFrame]:
+    def show_tabular_report(self, models: Optional[List[Tuple]] = None, return_df: bool = False) -> Optional[pd.DataFrame]:
         """Displays all model metrics in a clean tabular format and recommends the best model."""
+        models = self._resolve_models(models)
         if not models:
             _safe_print("No models were successfully evaluated.")
             return None
@@ -412,11 +493,12 @@ class MultiModelClassifier(_BaseMultiModel):
 
     def plot_confusion_matrices(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
         show_plot: bool = True
     ):
         """Plots confusion matrices for all models with custom colormaps and class labels."""
+        models = self._resolve_models(models)
         if not models:
             return
 
@@ -455,11 +537,12 @@ class MultiModelClassifier(_BaseMultiModel):
 
     def plot_roc_curves(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
         show_plot: bool = True
     ):
         """Plots ROC curves for all models in a single combined plot."""
+        models = self._resolve_models(models)
         if not models:
             return
 
@@ -491,11 +574,12 @@ class MultiModelClassifier(_BaseMultiModel):
 
     def plot_comparison(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
         show_plot: bool = True
     ):
         """Plots comparison bar chart for Accuracy, Precision, Recall, and F1 Score."""
+        models = self._resolve_models(models)
         if not models:
             return
 
@@ -518,7 +602,7 @@ class MultiModelClassifier(_BaseMultiModel):
             ax.set_title("Comprehensive Model Comparison", fontsize=16, pad=20, fontweight='bold')
             ax.set_ylim(0, 1.1)
             ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+            ax.tick_params(axis='x', rotation=45)
             for container in ax.containers:
                 ax.bar_label(container, fmt='%.2f', padding=3, fontsize=9)
             plt.tight_layout()
@@ -526,11 +610,12 @@ class MultiModelClassifier(_BaseMultiModel):
 
     def get_summary(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_prefix: Optional[str] = None,
         show_plot: bool = True
     ):
         """Runs full reporting and visualization pipeline."""
+        models = self._resolve_models(models)
         df_report = self.show_tabular_report(models, return_df=True)
 
         if save_prefix:
@@ -552,11 +637,11 @@ class MultiModelRegressor(_BaseMultiModel):
 
     def __init__(
         self,
-        X: Union[pd.DataFrame, np.ndarray],
-        y: Union[pd.Series, pd.DataFrame, np.ndarray],
+        X: Optional[Union[pd.DataFrame, np.ndarray]] = None,
+        y: Optional[Union[pd.Series, pd.DataFrame, np.ndarray]] = None,
         test_size: float = 0.3,
         scaled_data: bool = False,
-        random_state: int = 42,
+        random_state: Optional[int] = 42,
         n_jobs: Optional[int] = -1
     ):
         super().__init__(
@@ -565,8 +650,17 @@ class MultiModelRegressor(_BaseMultiModel):
         )
         self._split_and_scale(self.y_flat)
 
-    @staticmethod
-    def evaluate_model(model: Any, X_test: Any, y_true: np.ndarray):
+    def evaluate_model(
+        self,
+        model: Any,
+        X_test: Optional[Any] = None,
+        y_true: Optional[np.ndarray] = None
+    ):
+        if X_test is None:
+            X_test = self.X_test_scaled
+        if y_true is None:
+            y_true = self.y_test
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             y_pred = model.predict(X_test)
@@ -576,50 +670,101 @@ class MultiModelRegressor(_BaseMultiModel):
         r2 = r2_score(y_true, y_pred)
         return mae, mse, rmse, r2, y_pred
 
-    def LinearRegression_model(self):
-        model = LinearRegression(n_jobs=self.n_jobs)
+    def LinearRegression_model(
+        self,
+        **kwargs
+    ):
+        kwargs.pop('random_state', None)
+        model = LinearRegression(n_jobs=self.n_jobs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def Lasso_model(self):
-        model = Lasso(alpha=0.1, random_state=self.random_state)
+    def Lasso_model(
+        self,
+        alpha: float = 0.1,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = Lasso(alpha=alpha, random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def Ridge_model(self):
-        model = Ridge(alpha=1.0, random_state=self.random_state)
+    def Ridge_model(
+        self,
+        alpha: float = 1.0,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = Ridge(alpha=alpha, random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def SVR_model(self):
-        model = SVR(kernel='rbf')
+    def SVR_model(
+        self,
+        kernel: str = 'rbf',
+        **kwargs
+    ):
+        kwargs.pop('random_state', None)
+        model = SVR(kernel=kernel, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def DecisionTree_model(self):
-        model = DecisionTreeRegressor(random_state=self.random_state)
+    def DecisionTree_model(
+        self,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = DecisionTreeRegressor(random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def RandomForest_model(self):
-        model = RandomForestRegressor(n_estimators=100, random_state=self.random_state, n_jobs=self.n_jobs)
+    def RandomForest_model(
+        self,
+        n_estimators: int = 100,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = RandomForestRegressor(n_estimators=n_estimators, random_state=rs, n_jobs=self.n_jobs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
         return self.evaluate_model(model, self.X_test_scaled, self.y_test)
 
-    def GradientBoosting_model(self):
-        model = GradientBoostingRegressor(n_estimators=100, random_state=self.random_state)
+    def GradientBoosting_model(
+        self,
+        n_estimators: int = 100,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = GradientBoostingRegressor(n_estimators=n_estimators, random_state=rs, **kwargs)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            model.fit(self.X_train_scaled, self.y_train)
+        return self.evaluate_model(model, self.X_test_scaled, self.y_test)
+
+    def AdaBoost_model(
+        self,
+        n_estimators: int = 50,
+        random_state: Optional[int] = None,
+        **kwargs
+    ):
+        rs = random_state if random_state is not None else self.random_state
+        model = AdaBoostRegressor(n_estimators=n_estimators, random_state=rs, **kwargs)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model.fit(self.X_train_scaled, self.y_train)
@@ -627,16 +772,18 @@ class MultiModelRegressor(_BaseMultiModel):
 
     def run_all_models(
         self,
-        custom_models: Optional[Dict[str, Any]] = None
+        custom_models: Optional[Dict[str, Any]] = None,
+        random_state: Optional[int] = None
     ) -> List[Tuple]:
         model_methods = [
-            ('Linear Regression', self.LinearRegression_model),
-            ('Lasso Regression', self.Lasso_model),
-            ('Ridge Regression', self.Ridge_model),
-            ('SVR', self.SVR_model),
-            ('Decision Tree Regressor', self.DecisionTree_model),
-            ('Random Forest Regressor', self.RandomForest_model),
-            ('Gradient Boosting Regressor', self.GradientBoosting_model)
+            ('Linear Regression', lambda: self.LinearRegression_model(random_state=random_state)),
+            ('Lasso Regression', lambda: self.Lasso_model(random_state=random_state)),
+            ('Ridge Regression', lambda: self.Ridge_model(random_state=random_state)),
+            ('SVR', lambda: self.SVR_model(random_state=random_state)),
+            ('Decision Tree Regressor', lambda: self.DecisionTree_model(random_state=random_state)),
+            ('Random Forest Regressor', lambda: self.RandomForest_model(random_state=random_state)),
+            ('Gradient Boosting Regressor', lambda: self.GradientBoosting_model(random_state=random_state)),
+            ('AdaBoost Regressor', lambda: self.AdaBoost_model(random_state=random_state))
         ]
 
         models = []
@@ -658,10 +805,12 @@ class MultiModelRegressor(_BaseMultiModel):
                 except Exception as e:
                     _safe_print(f"[WARNING] Custom regressor model '{name}' failed: {e}")
 
+        self.models_ = models
         return models
 
-    def show_tabular_report(self, models: List[Tuple], return_df: bool = False) -> Optional[pd.DataFrame]:
+    def show_tabular_report(self, models: Optional[List[Tuple]] = None, return_df: bool = False) -> Optional[pd.DataFrame]:
         """Displays all regression metrics in a clean tabular format and recommends the best model."""
+        models = self._resolve_models(models)
         if not models:
             _safe_print("No models were successfully evaluated.")
             return None
@@ -695,11 +844,12 @@ class MultiModelRegressor(_BaseMultiModel):
 
     def plot_true_vs_predicted(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
         show_plot: bool = True
     ):
         """Plots True vs Predicted values for all models."""
+        models = self._resolve_models(models)
         if not models:
             return
 
@@ -727,7 +877,6 @@ class MultiModelRegressor(_BaseMultiModel):
                 y_pred_arr = np.asarray(y_pred).ravel()
                 ax.scatter(y_test_arr, y_pred_arr, alpha=0.6, color=color, label=name)
 
-                # Fix Bug 3: Properly named line_min and line_max
                 line_max = max(np.max(y_pred_arr), np.max(y_test_arr))
                 line_min = min(np.min(y_pred_arr), np.min(y_test_arr))
                 ax.plot([line_min, line_max], [line_min, line_max], 'k--', lw=2)
@@ -745,11 +894,12 @@ class MultiModelRegressor(_BaseMultiModel):
 
     def plot_comparison(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
         show_plot: bool = True
     ):
         """Plots comparison bar charts for R2 score."""
+        models = self._resolve_models(models)
         if not models:
             return
 
@@ -761,7 +911,7 @@ class MultiModelRegressor(_BaseMultiModel):
             sns.barplot(x=model_names, y=r2_scores, palette='viridis', ax=ax)
             ax.set_title("Regressor R2 Score Comparison", pad=20, fontweight='bold')
             ax.set_ylabel("R2 Score")
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+            ax.tick_params(axis='x', rotation=45)
 
             for container in ax.containers:
                 ax.bar_label(container, fmt='%.2f', padding=3, fontsize=10)
@@ -771,11 +921,12 @@ class MultiModelRegressor(_BaseMultiModel):
 
     def get_summary(
         self,
-        models: List[Tuple],
+        models: Optional[List[Tuple]] = None,
         save_prefix: Optional[str] = None,
         show_plot: bool = True
     ):
         """Runs full reporting and visualization pipeline."""
+        models = self._resolve_models(models)
         df_report = self.show_tabular_report(models, return_df=True)
 
         if save_prefix:
