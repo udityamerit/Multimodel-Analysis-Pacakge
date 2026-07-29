@@ -4,12 +4,14 @@
   <img src="https://raw.githubusercontent.com/udityamerit/Multimodel-Analysis-Pacakge/main/multi_modelml.png" alt="MultiModel Analysis Banner" width="100%"/>
 </p>
 
-[![PyPI Version](https://img.shields.io/pypi/v/multimodel_analysis.svg)](https://pypi.org/project/multimodel-analysis/)
-[![Python Version](https://img.shields.io/pypi/pyversions/multimodel_analysis.svg)](https://pypi.org/project/multimodel-analysis/)
-[![Downloads Per Month](https://img.shields.io/pypi/dm/multimodel-analysis.svg?label=downloads%2Fmonth)](https://pypi.org/project/multimodel-analysis/)
-[![Total Downloads](https://pepy.tech/badge/multimodel-analysis)](https://pepy.tech/project/multimodel-analysis)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Framework](https://img.shields.io/badge/Built%20With-Scikit--Learn-orange)](https://scikit-learn.org/)
+<p align="center">
+  <a href="https://pypi.org/project/multimodel-analysis/"><img src="https://img.shields.io/pypi/v/multimodel-analysis.svg?color=blue" alt="PyPI Version"/></a>
+  <a href="https://pypi.org/project/multimodel-analysis/"><img src="https://img.shields.io/pypi/pyversions/multimodel-analysis.svg" alt="Python Version"/></a>
+  <a href="https://udityamerit.github.io/Multimodel-Analysis-Pacakge-Documentation/"><img src="https://img.shields.io/badge/Documentation-Live%20Docs-brightgreen.svg?logo=github&logoColor=white" alt="Live Documentation"/></a>
+  <a href="https://pepy.tech/project/multimodel-analysis"><img src="https://pepy.tech/badge/multimodel-analysis" alt="Total Downloads"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
+  <a href="https://scikit-learn.org/"><img src="https://img.shields.io/badge/Built%20With-Scikit--Learn-orange?logo=scikit-learn&logoColor=white" alt="Built With Scikit-Learn"/></a>
+</p>
 
 **MultiModel Analysis** is a Python framework designed to automate model benchmarking, evaluation, and visualization for Supervised Machine Learning tasks (Classification and Regression). It provides a unified interface for training multiple baseline models, computing statistical evaluation metrics, generating diagnostic visualizations, and identifying optimal model candidates.
 
