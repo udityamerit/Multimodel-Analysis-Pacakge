@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased - Phase 4: hyper-parameter tuning
+## 0.3.0 - Phase 4: hyper-parameter tuning
 
 - `tune_models(include=, exclude=, search='random'|'grid'|'halving', n_iter=20, cv=5, scoring=, param_grids=)`: tunes each model on the training split with leak-free CV (preprocessing is refitted inside every fold) and returns the same report tuples as `run_all_models`, so `show_tabular_report`, `predict`, plots and `save_model` work on tuned models.
 - Every built-in classifier and regressor ships a default `search_space` (`ModelSpec.search_space`); pass `param_grids={'knn': {...}}` to override one.
 - New attributes `best_params_` (per model) and `tuning_results_` (best CV score, parameters, candidates tried, search time). Failures go to `failed_models_`; `n_iter` is capped at the grid size.
+- New notebook `examples/phase4_tuning.ipynb` with executed output.
 - Repo cleanup: removed stale example notebooks/CSV and an old PyPI screenshot; `.gitignore` and `MANIFEST.in` tidied.
 
 ## 0.2.0 - restructure, registry, preprocessing, prediction, cross-validation
