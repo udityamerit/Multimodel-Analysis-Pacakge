@@ -10,6 +10,7 @@
 - `save_html_report(path, title=)` on every analyser: one self-contained HTML file with the results table, the plots, failed models and warnings; open it in any browser or e-mail it.
 - Internal: clustering, anomaly detection and reduction share one `_UnsupervisedBase`; `TrainedModel.transform()` added.
 - New notebook `examples/phase7_anomaly_reduction_explain.ipynb` with executed output.
+- Minimum Python is now 3.10 (tested on 3.10, 3.11 and 3.12).
 
 ## 0.5.0 - Phase 6: clustering (unsupervised learning)
 
