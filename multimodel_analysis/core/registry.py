@@ -9,6 +9,7 @@ class BuildContext:
     random_state: Optional[int]
     n_jobs: Optional[int]
     n_train: int
+    class_weight: Optional[str] = None
 
 
 @dataclass(frozen=True)

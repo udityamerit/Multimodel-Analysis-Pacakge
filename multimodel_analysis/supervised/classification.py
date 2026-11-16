@@ -30,6 +30,13 @@ from ..core.registry import ModelRegistry, ModelSpec
 from ..core.utils import _apply_plot_style, _safe_print, save_report
 
 
+def _cw(ctx, params):
+    """Adds ``class_weight`` from the build context unless the caller set it explicitly."""
+    if ctx.class_weight and "class_weight" not in params:
+        return {**params, "class_weight": ctx.class_weight}
+    return params
+
+
 def _knn_clf(ctx, n_neighbors=None, **kw):
     n = n_neighbors if n_neighbors is not None else min(10, max(1, ctx.n_train - 1))
     return KNeighborsClassifier(n_neighbors=n, n_jobs=ctx.n_jobs, **kw)
@@ -37,17 +44,17 @@ def _knn_clf(ctx, n_neighbors=None, **kw):
 
 CLASSIFIER_REGISTRY = ModelRegistry([
     ModelSpec("logistic_regression", "Logistic Regression",
-              lambda ctx, **p: LogisticRegression(random_state=ctx.random_state, **p),
+              lambda ctx, **p: LogisticRegression(random_state=ctx.random_state, **_cw(ctx, p)),
               defaults={"max_iter": 1000}),
     ModelSpec("svm", "SVM",
-              lambda ctx, **p: SVC(random_state=ctx.random_state, **p),
+              lambda ctx, **p: SVC(random_state=ctx.random_state, **_cw(ctx, p)),
               defaults={"kernel": "rbf", "probability": True}),
     ModelSpec("decision_tree", "Decision Tree",
-              lambda ctx, **p: DecisionTreeClassifier(random_state=ctx.random_state, **p)),
+              lambda ctx, **p: DecisionTreeClassifier(random_state=ctx.random_state, **_cw(ctx, p))),
     ModelSpec("knn", "KNN", _knn_clf, defaults={"n_neighbors": None}),
     ModelSpec("naive_bayes", "Naive Bayes", lambda ctx, **p: GaussianNB(**p)),
     ModelSpec("random_forest", "Random Forest",
-              lambda ctx, **p: RandomForestClassifier(random_state=ctx.random_state, n_jobs=ctx.n_jobs, **p),
+              lambda ctx, **p: RandomForestClassifier(random_state=ctx.random_state, n_jobs=ctx.n_jobs, **_cw(ctx, p)),
               defaults={"n_estimators": 100}),
     ModelSpec("gradient_boosting", "Gradient Boosting",
               lambda ctx, **p: GradientBoostingClassifier(random_state=ctx.random_state, **p),
@@ -60,6 +67,8 @@ CLASSIFIER_REGISTRY = ModelRegistry([
 
 class MultiModelClassifier(_BaseMultiModel):
     registry = CLASSIFIER_REGISTRY
+    task = "classification"
+    default_scoring = "accuracy"
     """
     Automated multi-model analysis tool for classification datasets.
 
@@ -73,6 +82,10 @@ class MultiModelClassifier(_BaseMultiModel):
     stratify : keep class proportions in the split when the class counts allow it.
     n_jobs : parallel workers for estimators that support it.
     verbose : print warnings captured while models train (they are always stored in ``warnings_``).
+    preprocess : automatically impute missing values and one-hot encode text columns (fit on the
+        training split only). Default ``False`` keeps the strict "numeric, no NaN" input check.
+    class_weight : ``None`` or ``'balanced'`` to counter imbalanced classes. Applied by Logistic
+        Regression, SVM, Decision Tree and Random Forest (and any registry model that supports it).
     """
 
     def __init__(
@@ -84,12 +97,17 @@ class MultiModelClassifier(_BaseMultiModel):
         random_state: Optional[int] = 42,
         stratify: bool = True,
         n_jobs: Optional[int] = -1,
-        verbose: bool = True
+        verbose: bool = True,
+        preprocess: bool = False,
+        class_weight: Optional[str] = None
     ):
         super().__init__(
             X=X, y=y, test_size=test_size, scaled_data=scaled_data,
-            random_state=random_state, n_jobs=n_jobs, verbose=verbose
+            random_state=random_state, n_jobs=n_jobs, verbose=verbose, preprocess=preprocess
         )
+        if class_weight not in (None, "balanced"):
+            raise ValueError("class_weight must be None or 'balanced'.")
+        self.class_weight = class_weight
 
         target_kind = type_of_target(self.y_flat)
         if target_kind in ('continuous', 'continuous-multioutput'):
@@ -297,7 +315,8 @@ class MultiModelClassifier(_BaseMultiModel):
                 'Precision': precision,
                 'Recall': recall,
                 'F1 Score': f1,
-                'ROC AUC': roc_auc
+                'ROC AUC': roc_auc,
+                'Fit Time (s)': self.fit_times_.get(name, np.nan)
             })
 
         df = pd.DataFrame(data)

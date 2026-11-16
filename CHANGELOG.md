@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0.dev1 - Phase 3: preprocessing, prediction, persistence, cross-validation
+
+- `preprocess=True` (classifier and regressor): impute missing values, one-hot encode text columns and scale, fitted on the training split only. Default stays strict.
+- `predict(X_new, model=None)`, `export_model()`, `save_model(path)` and `load_model(path)` (joblib); a saved `TrainedModel` carries its preprocessing and returns original class labels.
+- `cross_validate_models(cv=5, scoring=..., include=, exclude=, custom_models=)`: leak-free CV on the training split, results in `cv_results_`.
+- `class_weight='balanced'` for classification (Logistic Regression, SVM, Decision Tree, Random Forest).
+- `Fit Time (s)` column in both reports.
+
 ## 0.2.0.dev0 - Phase 2: package restructure
 
 - Code split into `multimodel_analysis/core` (base, registry, utils) and `multimodel_analysis/supervised` (classification, regression). `multimodel_analysis.multimodel` remains as a compatibility shim; all old imports and method names still work.

@@ -53,6 +53,8 @@ REGRESSOR_REGISTRY = ModelRegistry([
 
 class MultiModelRegressor(_BaseMultiModel):
     registry = REGRESSOR_REGISTRY
+    task = "regression"
+    default_scoring = "r2"
     """
     Automated multi-model analysis tool for regression datasets.
 
@@ -64,6 +66,8 @@ class MultiModelRegressor(_BaseMultiModel):
     random_state : seed for the split and for every stochastic model.
     n_jobs : parallel workers for estimators that support it.
     verbose : print warnings captured while models train (they are always stored in ``warnings_``).
+    preprocess : automatically impute missing values and one-hot encode text columns (fit on the
+        training split only). Default ``False`` keeps the strict "numeric, no NaN" input check.
     """
 
     def __init__(
@@ -74,11 +78,12 @@ class MultiModelRegressor(_BaseMultiModel):
         scaled_data: bool = True,
         random_state: Optional[int] = 42,
         n_jobs: Optional[int] = -1,
-        verbose: bool = True
+        verbose: bool = True,
+        preprocess: bool = False
     ):
         super().__init__(
             X=X, y=y, test_size=test_size, scaled_data=scaled_data,
-            random_state=random_state, n_jobs=n_jobs, verbose=verbose
+            random_state=random_state, n_jobs=n_jobs, verbose=verbose, preprocess=preprocess
         )
         try:
             self.y_flat = self.y_flat.astype(float)
@@ -156,7 +161,8 @@ class MultiModelRegressor(_BaseMultiModel):
                 'MAE': mae,
                 'MSE': mse,
                 'RMSE': rmse,
-                'R2 Score': r2
+                'R2 Score': r2,
+                'Fit Time (s)': self.fit_times_.get(name, np.nan)
             })
 
         df = pd.DataFrame(data)

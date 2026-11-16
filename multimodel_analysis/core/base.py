@@ -10,6 +10,8 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+from .persistence import TrainedModel
+from .preprocessing import build_preprocessor, to_dataframe, transform_to_frame
 from .registry import BuildContext, ModelRegistry
 from .utils import _VISIBLE_WARNINGS, _safe_print, _validate_inputs, save_report
 
@@ -26,6 +28,8 @@ class _BaseMultiModel:
     """
 
     registry: ModelRegistry = ModelRegistry()  # overridden by each subclass
+    task: str = "supervised"  # 'classification' or 'regression' in the subclasses
+    default_scoring: str = "r2"
 
     def __init__(
         self,
@@ -35,10 +39,12 @@ class _BaseMultiModel:
         scaled_data: bool = True,
         random_state: Optional[int] = 42,
         n_jobs: Optional[int] = -1,
-        verbose: bool = True
+        verbose: bool = True,
+        preprocess: bool = False
     ):
-        self.y_flat = _validate_inputs(X, y, test_size)
+        self.y_flat = _validate_inputs(X, y, test_size, preprocess=preprocess)
 
+        self.preprocess = preprocess
         self.X = X
         self.y_raw = y
         self.test_size = test_size
@@ -52,8 +58,11 @@ class _BaseMultiModel:
         self.estimators_ = {}
         self.fit_times_ = {}
         self._last_df_report = None
+        self.cv_results_ = None
 
         self.scaler = StandardScaler()
+        self.transformer_ = None  # fitted scaler / preprocessor (None when scaled_data=False and preprocess=False)
+        self.feature_names_ = None  # columns of the matrix the models are trained on
 
     # ------------------------------------------------------------------ helpers
     def _warn(self, label: str, message: str, show: bool = True) -> None:
@@ -94,6 +103,7 @@ class _BaseMultiModel:
             random_state=random_state if random_state is not None else self.random_state,
             n_jobs=self.n_jobs,
             n_train=len(self.y_train),
+            class_weight=getattr(self, "class_weight", None),
         )
         return self._fit_and_evaluate(spec.build(ctx, **params), name=spec.name)
 
@@ -140,19 +150,27 @@ class _BaseMultiModel:
 
     def _split_and_scale(self, y_split: np.ndarray, stratify_y: Optional[np.ndarray] = None):
         """Splits features and targets and applies optional scaling preserving DataFrame structures."""
+        X_all = to_dataframe(self.X) if self.preprocess else self.X
+        self.input_columns_ = [str(c) for c in X_all.columns] if isinstance(X_all, pd.DataFrame) else None
         try:
             X_train, X_test, y_train, y_test = train_test_split(
-                self.X, y_split, test_size=self.test_size, random_state=self.random_state, stratify=stratify_y
+                X_all, y_split, test_size=self.test_size, random_state=self.random_state, stratify=stratify_y
             )
         except ValueError as exc:
             if stratify_y is None:
                 raise
             _safe_print(f"[WARNING] Stratified split not possible ({exc}). Falling back to a random split.")
             X_train, X_test, y_train, y_test = train_test_split(
-                self.X, y_split, test_size=self.test_size, random_state=self.random_state
+                X_all, y_split, test_size=self.test_size, random_state=self.random_state
             )
+        self.X_train_raw, self.X_test_raw = X_train, X_test  # untransformed splits (used by cross-validation)
 
-        if self.scaled_data:
+        if self.preprocess:
+            self.transformer_ = build_preprocessor(X_train, scale=self.scaled_data)
+            self.X_train_scaled = transform_to_frame(self.transformer_, X_train, fit=True)
+            self.X_test_scaled = transform_to_frame(self.transformer_, X_test)
+        elif self.scaled_data:
+            self.transformer_ = self.scaler
             if isinstance(X_train, pd.DataFrame):
                 scaled_train = self.scaler.fit_transform(X_train)
                 scaled_test = self.scaler.transform(X_test)
@@ -165,8 +183,119 @@ class _BaseMultiModel:
             self.X_train_scaled = X_train
             self.X_test_scaled = X_test
 
+        if isinstance(self.X_train_scaled, pd.DataFrame):
+            self.feature_names_ = [str(c) for c in self.X_train_scaled.columns]
+
         self.y_train = y_train
         self.y_test = y_test
+
+    # ------------------------------------------------------------------ prediction, saving, cross-validation
+    def _make_transformer(self) -> Any:
+        """Returns a NEW unfitted copy of the preprocessing (or ``None``), for use inside CV pipelines."""
+        if self.preprocess:
+            return build_preprocessor(self.X_train_raw, scale=self.scaled_data)
+        if self.scaled_data:
+            return StandardScaler()
+        return None
+
+    def _best_model_name(self) -> str:
+        if self._last_df_report is not None and len(self._last_df_report):
+            return str(self._last_df_report.iloc[0]["Model"])
+        if len(self.estimators_) == 1:
+            return next(iter(self.estimators_))
+        raise ValueError(
+            "Say which model to use, e.g. model='Random Forest', or call show_tabular_report() first "
+            f"so the best model can be picked. Fitted so far: {list(self.estimators_)}"
+        )
+
+    def export_model(self, model: Optional[str] = None) -> TrainedModel:
+        """Bundles a fitted model with its preprocessing into a :class:`TrainedModel` (default: the best one)."""
+        name = model if model is not None else self._best_model_name()
+        estimator = self.get_model(name)
+        if model is not None and name not in self.estimators_:
+            name = self.registry.resolve(name).name
+        from .. import __version__
+
+        return TrainedModel(
+            estimator=estimator,
+            name=name,
+            task=self.task,
+            transformer=self.transformer_,
+            label_encoder=getattr(self, "label_encoder", None),
+            columns=self.input_columns_,
+            feature_names=self.feature_names_,
+            metadata={"package_version": __version__, "random_state": self.random_state},
+        )
+
+    def predict(self, X_new: Any, model: Optional[str] = None) -> np.ndarray:
+        """Predicts for NEW raw data with a fitted model (default: the best model of the last report).
+
+        The same scaling / imputation / encoding used in training is applied automatically, and
+        classification returns the original labels.
+        """
+        return self.export_model(model).predict(X_new)
+
+    def save_model(self, path: str, model: Optional[str] = None) -> str:
+        """Saves a fitted model + its preprocessing to ``path`` (joblib). Reload with ``load_model(path)``."""
+        return self.export_model(model).save(path)
+
+    def cross_validate_models(
+        self,
+        cv: Union[int, Any] = 5,
+        scoring: Optional[Union[str, List[str]]] = None,
+        include: Optional[List[str]] = None,
+        exclude: Optional[List[str]] = None,
+        custom_models: Optional[Dict[str, Any]] = None,
+    ) -> pd.DataFrame:
+        """Cross-validates every model on the TRAINING split (the test split stays untouched).
+
+        Preprocessing is re-fitted inside every fold, so there is no data leakage.
+        ``scoring`` is any scikit-learn scoring string or a list of them (default: accuracy for
+        classification, r2 for regression). ``neg_*`` scorers are negative: higher is still better.
+        Returns a DataFrame sorted by the first scorer and stores it in ``cv_results_``.
+        """
+        from sklearn.base import clone
+        from sklearn.model_selection import cross_validate
+        from sklearn.pipeline import make_pipeline
+
+        scorers = [scoring] if isinstance(scoring, str) else list(scoring or [self.default_scoring])
+        ctx = BuildContext(
+            random_state=self.random_state, n_jobs=self.n_jobs, n_train=len(self.y_train),
+            class_weight=getattr(self, "class_weight", None),
+        )
+        candidates = [(spec.name, lambda spec=spec: spec.build(ctx)) for spec in self.registry.select(include, exclude)]
+        for cname, inst in (custom_models or {}).items():
+            candidates.append((cname, lambda inst=inst: clone(inst)))
+
+        rows, failed = [], {}
+        for name, build in candidates:
+            try:
+                estimator = build()
+                transformer = self._make_transformer()
+                pipe = estimator if transformer is None else make_pipeline(transformer, estimator)
+                with self._track_warnings(f"{name} (cv)"):
+                    res = cross_validate(pipe, self.X_train_raw, self.y_train, cv=cv, scoring=scorers)
+                row = {"Model": name}
+                for s in scorers:
+                    row[f"{s} mean"] = float(np.mean(res[f"test_{s}"]))
+                    row[f"{s} std"] = float(np.std(res[f"test_{s}"]))
+                row["Fit Time (s)"] = float(np.mean(res["fit_time"]))
+                rows.append(row)
+            except Exception as e:
+                failed[name] = f"{type(e).__name__}: {e}"
+                _safe_print(f"[WARNING] Cross-validation failed for '{name}': {e}")
+
+        self.cv_failed_ = failed
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.sort_values(by=f"{scorers[0]} mean", ascending=False).reset_index(drop=True)
+        self.cv_results_ = df
+        if self.verbose and not df.empty:
+            _safe_print(f"\n{'='*60}\n CROSS-VALIDATION ({cv if isinstance(cv, int) else 'custom'}-fold, "
+                        f"on the training split) \n{'='*60}")
+            _safe_print(df.to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+            _safe_print(f"{'='*60}\n")
+        return df
 
     @staticmethod
     def _save_and_show(fig: plt.Figure, save_path: Optional[str] = None, show_plot: bool = True):

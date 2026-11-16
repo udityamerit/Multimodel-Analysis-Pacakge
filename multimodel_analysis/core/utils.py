@@ -41,8 +41,10 @@ def _apply_plot_style():
             yield
 
 
-def _validate_inputs(X: Any, y: Any, test_size: Union[int, float]) -> np.ndarray:
+def _validate_inputs(X: Any, y: Any, test_size: Union[int, float], preprocess: bool = False) -> np.ndarray:
     """Validates features / target / test_size and returns the flattened target array.
+
+    With ``preprocess=True`` missing values and text columns in ``X`` are allowed (they get imputed / encoded).
 
     Raises clear ``ValueError`` / ``TypeError`` messages instead of cryptic scikit-learn errors.
     """
@@ -77,7 +79,15 @@ def _validate_inputs(X: Any, y: Any, test_size: Union[int, float]) -> np.ndarray
     else:
         raise TypeError(f"test_size must be a float or an int, got {type(test_size).__name__}.")
 
-    # --- features: numeric, finite ---
+    # --- features: numeric, finite (skipped when automatic preprocessing will handle them) ---
+    if preprocess:
+        if isinstance(X, pd.DataFrame):
+            numeric = X.select_dtypes(include="number")
+            n_inf = int(np.isinf(numeric.to_numpy(dtype=float)).sum()) if numeric.shape[1] else 0
+            if n_inf:
+                raise ValueError(f"X contains {n_inf} infinite value(s). Replace or drop them first.")
+        return y_flat
+
     if isinstance(X, pd.DataFrame):
         non_numeric = [str(c) for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
         if non_numeric:
