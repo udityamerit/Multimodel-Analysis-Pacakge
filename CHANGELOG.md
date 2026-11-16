@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 - Phase 7: anomaly detection, dimensionality reduction, explainability, HTML report
+
+- New `MultiModelAnomalyDetector(X, y=None, contamination=None)`: Isolation Forest, Local Outlier Factor, One-Class SVM, Elliptic Envelope, KNN Distance and Robust Z-Score (opt-in: SGD One-Class SVM). Every model flags the same share of rows (`contamination`: from `y` when given, else 5%), so the models are comparable. Optional true labels `y` (0 / 1) add Precision, Recall, F1, ROC AUC and Average Precision; without labels the report shows `Agreement` (how much a model sees the data like the others).
+  - `top_anomalies()`, `consensus(min_votes=)` (rows flagged by many models), `assign_anomalies()`, `predict()` / `score_new()` for new rows, `save_model()`, `plot_comparison / plot_anomalies / plot_scores`, `get_summary()`.
+- New `MultiModelReducer(X, y=None, n_components=2)`: PCA, Kernel PCA, FastICA, Factor Analysis, Isomap, LLE, t-SNE (opt-in: Truncated SVD, Spectral Embedding, MDS, Random Projection, UMAP via `pip install multimodel_analysis[umap]`). Scored with Trustworthiness, Continuity, Global Structure, Variance Kept and (with `y`) Class Separation.
+  - `find_n_components(variance=0.95)`, `plot_variance()`, `get_embedding()`, `get_loadings()`, `transform(X_new)` and `save_model()` for methods that can map new rows, `plot_embeddings()` (coloured by `y`), `get_summary()`.
+- Explainability for classifiers and regressors (no extra packages, computed on the test split): `feature_importance()` (permutation importance), `plot_feature_importance()`, `partial_dependence()` and `plot_partial_dependence()`.
+- `save_html_report(path, title=)` on every analyser: one self-contained HTML file with the results table, the plots, failed models and warnings; open it in any browser or e-mail it.
+- Internal: clustering, anomaly detection and reduction share one `_UnsupervisedBase`; `TrainedModel.transform()` added.
+- New notebook `examples/phase7_anomaly_reduction_explain.ipynb` with executed output.
+
 ## 0.5.0 - Phase 6: clustering (unsupervised learning)
 
 - New `MultiModelClusterer(X, y=None, n_clusters=3 | 'auto', scaled_data=True, preprocess=False)`: runs clustering algorithms on one dataset, scores them and recommends the best. `y` (optional true labels) is never used for fitting, only to add external scores (ARI, NMI, V-measure, Homogeneity, Completeness).

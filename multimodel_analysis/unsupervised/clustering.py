@@ -25,7 +25,6 @@ from sklearn.cluster import (
     SpectralClustering,
     estimate_bandwidth,
 )
-from sklearn.decomposition import PCA
 from sklearn.metrics import (
     adjusted_rand_score,
     calinski_harabasz_score,
@@ -39,14 +38,13 @@ from sklearn.metrics import (
 )
 from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import NearestNeighbors
-from sklearn.preprocessing import StandardScaler
 
-from ..core.mixins import _ReportingMixin
 from ..core.persistence import TrainedModel
 from ..core.plotting import comparison_figure
-from ..core.preprocessing import build_preprocessor, to_dataframe, transform_to_frame
+from ..core.preprocessing import to_dataframe
 from ..core.registry import BuildContext, ModelRegistry, ModelSpec
-from ..core.utils import _apply_plot_style, _safe_print, _validate_features
+from ..core.utils import _apply_plot_style, _safe_print
+from ._base import _UnsupervisedBase
 
 _K = list(range(2, 11))  # candidate numbers of clusters used by tune_models / find_optimal_k
 _PALETTE = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b", "#e377c2", "#17becf",
@@ -161,7 +159,7 @@ class ClusterResult:
     fit_time: float = float("nan")
 
 
-class MultiModelClusterer(_ReportingMixin):
+class MultiModelClusterer(_UnsupervisedBase):
     """Benchmarks clustering algorithms on one dataset.
 
     Parameters
@@ -196,14 +194,7 @@ class MultiModelClusterer(_ReportingMixin):
         verbose: bool = True,
         preprocess: bool = False,
     ):
-        if X is None:
-            raise ValueError("Features 'X' must be provided to initialize MultiModelClusterer.")
-        if np.ndim(X) != 2:
-            raise ValueError("X must be 2-dimensional (rows = samples, columns = features).")
-        _validate_features(X, preprocess)
-        n_samples = len(X)
-        if n_samples < 4:
-            raise ValueError(f"At least 4 rows are needed to cluster, got {n_samples}.")
+        n_samples = self._check_features(X, preprocess, 4, "cluster")
         if n_clusters != "auto":
             if not isinstance(n_clusters, (int, np.integer)) or isinstance(n_clusters, bool) or n_clusters < 2:
                 raise ValueError("n_clusters must be an integer >= 2 or 'auto'.")
@@ -243,30 +234,6 @@ class MultiModelClusterer(_ReportingMixin):
         self._last_df_report: Optional[pd.DataFrame] = None
 
         self._prepare_features()
-
-    # ------------------------------------------------------------------ data preparation
-    def _prepare_features(self) -> None:
-        """Scales / preprocesses X once; the models are fitted on the result (``X_scaled``)."""
-        X_all = to_dataframe(self.X) if self.preprocess else self.X
-        self.input_columns_ = [str(c) for c in X_all.columns] if isinstance(X_all, pd.DataFrame) else None
-        self.transformer_ = None
-        if self.preprocess:
-            self.transformer_ = build_preprocessor(X_all, scale=self.scaled_data)
-            self.X_scaled = transform_to_frame(self.transformer_, X_all, fit=True)
-        elif self.scaled_data:
-            self.transformer_ = StandardScaler()
-            values = self.transformer_.fit_transform(X_all)
-            self.X_scaled = (pd.DataFrame(values, columns=X_all.columns, index=X_all.index)
-                             if isinstance(X_all, pd.DataFrame) else values)
-        else:
-            self.X_scaled = X_all
-        self.feature_names_ = ([str(c) for c in self.X_scaled.columns]
-                               if isinstance(self.X_scaled, pd.DataFrame) else None)
-        self._values = np.asarray(self.X_scaled, dtype=float)
-
-    def _build_context(self, random_state: Optional[int] = None) -> BuildContext:
-        return BuildContext(random_state=random_state if random_state is not None else self.random_state,
-                            n_jobs=self.n_jobs, n_train=self.n_samples_)
 
     def _k(self) -> int:
         """Number of clusters to use; resolves ``'auto'`` on first use."""
@@ -697,18 +664,6 @@ class MultiModelClusterer(_ReportingMixin):
             )
             self._save_and_show(fig, save_path=save_path, show_plot=show_plot)
 
-    def _project_2d(self) -> Tuple[np.ndarray, List[str]]:
-        """2-D coordinates for plotting: the raw features when there are 2, otherwise a PCA projection."""
-        v = self._values
-        if v.shape[1] < 2:
-            raise ValueError("Plotting clusters needs at least 2 features.")
-        if v.shape[1] == 2:
-            names = self.feature_names_ or ["feature 1", "feature 2"]
-            return v, [str(n) for n in names]
-        pca = PCA(n_components=2, random_state=self.random_state).fit(v)
-        ratio = pca.explained_variance_ratio_ * 100
-        return pca.transform(v), [f"PC 1 ({ratio[0]:.0f}% of variance)", f"PC 2 ({ratio[1]:.0f}% of variance)"]
-
     def plot_clusters(
         self,
         models: Optional[List[ClusterResult]] = None,
@@ -783,6 +738,14 @@ class MultiModelClusterer(_ReportingMixin):
                 ax.spines[side].set_visible(False)
             fig.tight_layout()
             self._save_and_show(fig, save_path=save_path, show_plot=show_plot)
+
+    def _report_subtitle(self) -> str:
+        return (f"Clustering - {self.n_samples_} rows, {self._values.shape[1]} features, "
+                f"{len(self._results)} models")
+
+    def _report_plots(self):
+        return [("Model comparison", lambda p: self.plot_comparison(save_path=p, show_plot=False)),
+                ("Clusters found", lambda p: self.plot_clusters(save_path=p, show_plot=False))]
 
     def get_summary(
         self,

@@ -519,6 +519,10 @@ class MultiModelClassifier(_BaseMultiModel):
             )
             self._save_and_show(fig, save_path=save_path, show_plot=show_plot)
 
+    def _task_plots(self):
+        return [("Confusion matrices", lambda p: self.plot_confusion_matrices(save_path=p, show_plot=False)),
+                ("ROC curves", lambda p: self.plot_roc_curves(save_path=p, show_plot=False))]
+
     def get_summary(
         self,
         models: Optional[List[Tuple]] = None,

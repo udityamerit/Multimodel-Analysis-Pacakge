@@ -26,7 +26,7 @@ class TrainedModel:
     ):
         self.estimator = estimator
         self.name = name
-        self.task = task  # 'classification' | 'regression'
+        self.task = task  # 'classification' | 'regression' | 'clustering' | ...
         self.transformer = transformer  # fitted StandardScaler / ColumnTransformer / None
         self.label_encoder = label_encoder
         self.columns = columns  # raw input columns expected by predict()
@@ -57,6 +57,12 @@ class TrainedModel:
         if self.label_encoder is not None:
             return self.label_encoder.inverse_transform(np.asarray(pred, dtype=int))
         return np.asarray(pred)
+
+    def transform(self, X: Any) -> np.ndarray:
+        """Maps new rows to the new feature space (dimensionality-reduction models)."""
+        if not hasattr(self.estimator, "transform"):
+            raise TypeError(f"'{self.name}' has no transform method.")
+        return np.asarray(self.estimator.transform(self._prepare(X)))
 
     def predict_proba(self, X: Any) -> pd.DataFrame:
         """Class probabilities as a DataFrame with one column per class (classification only)."""

@@ -342,6 +342,9 @@ class MultiModelRegressor(_BaseMultiModel):
             )
             self._save_and_show(fig, save_path=save_path, show_plot=show_plot)
 
+    def _task_plots(self):
+        return [("True vs predicted", lambda p: self.plot_true_vs_predicted(save_path=p, show_plot=False))]
+
     def get_summary(
         self,
         models: Optional[List[Tuple]] = None,

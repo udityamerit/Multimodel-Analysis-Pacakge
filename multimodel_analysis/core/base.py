@@ -7,6 +7,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+from .explain import _ExplainMixin
 from .mixins import _ReportingMixin
 from .persistence import TrainedModel
 from .preprocessing import build_preprocessor, to_dataframe, transform_to_frame
@@ -14,7 +15,7 @@ from .registry import BuildContext, ModelRegistry
 from .utils import _safe_print, _validate_inputs
 
 
-class _BaseMultiModel(_ReportingMixin):
+class _BaseMultiModel(_ExplainMixin, _ReportingMixin):
     """Base class providing shared initialization, validation, scaling, and utility methods.
 
     Attributes populated while working:
@@ -172,6 +173,24 @@ class _BaseMultiModel(_ReportingMixin):
             "Say which model to use, e.g. model='Random Forest', or call show_tabular_report() first "
             f"so the best model can be picked. Fitted so far: {list(self.estimators_)}"
         )
+
+    def _task_plots(self) -> List[Tuple[str, Any]]:
+        return []
+
+    def _report_subtitle(self) -> str:
+        n_features = np.asarray(self.X_train_scaled).shape[1]
+        return (f"{self.task.capitalize()} - {len(self.y_train)} training rows, {len(self.y_test)} test rows, "
+                f"{n_features} features, {len(self.estimators_)} models")
+
+    def _report_plots(self) -> List[Tuple[str, Any]]:
+        best = self._best_model_name()
+        plots = [("Model comparison", lambda p: self.plot_comparison(save_path=p, show_plot=False))]
+        plots += self._task_plots()
+        plots.append((f"Which features matter ({best})",
+                      lambda p: self.plot_feature_importance(best, save_path=p, show_plot=False)))
+        plots.append((f"How the top features change the prediction ({best})",
+                      lambda p: self.plot_partial_dependence(model=best, save_path=p, show_plot=False)))
+        return plots
 
     def export_model(self, model: Optional[str] = None) -> TrainedModel:
         """Bundles a fitted model with its preprocessing into a :class:`TrainedModel` (default: the best one)."""

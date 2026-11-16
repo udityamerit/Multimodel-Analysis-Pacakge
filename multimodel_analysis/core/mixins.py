@@ -2,8 +2,11 @@
 saving plots / reports and listing failed models. Needs ``registry``, ``verbose``, ``warnings_``,
 ``failed_models_``, ``estimators_`` and ``_last_df_report`` on the class using it."""
 import contextlib
+import io
+import os
+import tempfile
 import warnings
-from typing import Any, List, Optional, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -99,6 +102,52 @@ class _ReportingMixin:
             target_path = filepath if filepath else "report.csv"
 
         save_report(target_df, target_path)
+
+    # ------------------------------------------------------------------ HTML report
+    def _report_plots(self) -> List[Tuple[str, Callable[[str], Any]]]:
+        """(heading, function(save_path)) pairs drawn into the HTML report; each class overrides this."""
+        return []
+
+    def _report_subtitle(self) -> str:
+        return type(self).__name__
+
+    def save_html_report(self, path: str = "report.html", title: Optional[str] = None) -> str:
+        """Writes ONE self-contained HTML file: the results table, the plots and any warnings / failed models.
+
+        Run ``show_tabular_report()`` first; the file opens in any browser and can be e-mailed as it is
+        (plots are embedded, nothing else is needed). Returns the path.
+        """
+        from .htmlreport import build_html_report
+
+        df = getattr(self, "_last_df_report", None)
+        if df is None or not len(df):
+            raise ValueError("Nothing to report yet: run the models and call show_tabular_report() first.")
+        plots: List[Tuple[str, bytes]] = []
+        notes: List[Tuple[str, List[str]]] = []
+        problems: List[str] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            for i, (heading, draw) in enumerate(self._report_plots()):
+                png_path = os.path.join(tmp, f"plot{i}.png")
+                try:
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        draw(png_path)
+                    with open(png_path, "rb") as fh:
+                        plots.append((heading, fh.read()))
+                except Exception as exc:  # a plot that cannot be drawn must not lose the whole report
+                    problems.append(f"'{heading}' could not be drawn: {exc}")
+        if self.failed_models_:
+            notes.append(("Models that failed or were skipped", [f"{k}: {v}" for k, v in self.failed_models_.items()]))
+        warn_lines = [f"{k}: {m}" for k, msgs in self.warnings_.items() for m in msgs]
+        notes.append(("Warnings", warn_lines + problems))
+        from .. import __version__
+
+        html_text = build_html_report(
+            title or f"{type(self).__name__} report", self._report_subtitle(), df,
+            str(df.iloc[0]["Model"]), plots, notes, __version__)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(html_text)
+        _safe_print(f"[INFO] HTML report saved to '{path}'.")
+        return path
 
     def _print_failures(self) -> None:
         if self.failed_models_:
