@@ -53,8 +53,12 @@ def registry_of(module_name):
 
 
 def short(sig):
-    text = str(sig).replace("typing.", "").replace("pandas.core.frame.", "pd.").replace("numpy.", "np.")
-    return text.replace("pandas.", "pd.")
+    """Signature as text, identical on every Python version (3.10 spells pandas types out in full)."""
+    text = str(sig).replace("typing.", "")
+    for full, nice in [("pandas.core.series.Series", "pd.Series"), ("pandas.core.frame.DataFrame", "pd.DataFrame"),
+                       ("pandas.", "pd."), ("numpy.", "np.")]:
+        text = text.replace(full, nice)
+    return text
 
 
 def models_page():
