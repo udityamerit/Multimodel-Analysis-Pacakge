@@ -34,6 +34,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.multiclass import type_of_target
 
 from ..core.base import _BaseMultiModel
+from ..core.plotting import comparison_figure
 from ..core.registry import ModelRegistry, ModelSpec
 from ..core.utils import _apply_plot_style, _safe_print, save_report
 
@@ -498,36 +499,24 @@ class MultiModelClassifier(_BaseMultiModel):
         self,
         models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
-        show_plot: bool = True
+        show_plot: bool = True,
+        metric: str = 'F1 Score'
     ):
-        """Plots comparison bar chart for Accuracy, Precision, Recall, and F1 Score."""
+        """Plots all models ranked on one metric (default 'F1 Score'; or 'Accuracy', 'Precision', 'Recall', 'ROC AUC')."""
         models = self._resolve_models(models)
         if not models:
             return
 
-        model_names = [m[0] for m in models]
-        accuracy = [m[3] for m in models]
-        precision = [m[4] for m in models]
-        recall = [m[5] for m in models]
-        f1 = [m[6] for m in models]
-
-        data = {
-            'Model': model_names * 4,
-            'Score': accuracy + precision + recall + f1,
-            'Metric': ['Accuracy']*len(models) + ['Precision']*len(models) + ['Recall']*len(models) + ['F1 Score']*len(models)
-        }
-        df_plot = pd.DataFrame(data)
+        columns = {'Accuracy': 3, 'Precision': 4, 'Recall': 5, 'F1 Score': 6, 'ROC AUC': 9}
+        if metric not in columns:
+            raise ValueError(f"metric must be one of {list(columns)}, got '{metric}'.")
 
         with _apply_plot_style():
-            fig, ax = plt.subplots(figsize=(12, 7))
-            sns.barplot(x='Model', y='Score', hue='Metric', data=df_plot, palette="viridis", ax=ax)
-            ax.set_title("Comprehensive Model Comparison", fontsize=16, pad=20, fontweight='bold')
-            ax.set_ylim(0, 1.1)
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            ax.tick_params(axis='x', rotation=45)
-            for container in ax.containers:
-                ax.bar_label(container, fmt='%.2f', padding=3, fontsize=9)
-            plt.tight_layout()
+            fig = comparison_figure(
+                [m[0] for m in models], [m[columns[metric]] for m in models], metric=metric,
+                title=f"Model comparison: {metric}",
+                footnote="Measured on the held-out test split.",
+            )
             self._save_and_show(fig, save_path=save_path, show_plot=show_plot)
 
     def get_summary(

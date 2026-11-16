@@ -4,7 +4,6 @@ from typing import Any, List, Optional, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.ensemble import (
     AdaBoostRegressor,
@@ -22,6 +21,7 @@ from sklearn.svm import SVR, LinearSVR
 from sklearn.tree import DecisionTreeRegressor
 
 from ..core.base import _BaseMultiModel
+from ..core.plotting import comparison_figure
 from ..core.registry import ModelRegistry, ModelSpec
 from ..core.utils import _LOWER_IS_BETTER, _apply_plot_style, _safe_print, save_report
 
@@ -322,28 +322,24 @@ class MultiModelRegressor(_BaseMultiModel):
         self,
         models: Optional[List[Tuple]] = None,
         save_path: Optional[str] = None,
-        show_plot: bool = True
+        show_plot: bool = True,
+        metric: str = 'R2 Score'
     ):
-        """Plots comparison bar charts for R2 score."""
+        """Plots all models ranked on one metric (default 'R2 Score'; or 'MAE', 'MSE', 'RMSE')."""
         models = self._resolve_models(models)
         if not models:
             return
 
-        model_names = [m[0] for m in models]
-        r2_scores = [m[4] for m in models]
+        columns = {'R2 Score': 4, 'MAE': 1, 'MSE': 2, 'RMSE': 3}
+        if metric not in columns:
+            raise ValueError(f"metric must be one of {list(columns)}, got '{metric}'.")
 
         with _apply_plot_style():
-            fig, ax = plt.subplots(figsize=(10, 6))
-            colors = sns.color_palette('viridis', len(model_names))
-            ax.bar(model_names, r2_scores, color=colors)
-            ax.set_title("Regressor R2 Score Comparison", pad=20, fontweight='bold')
-            ax.set_ylabel("R2 Score")
-            ax.tick_params(axis='x', rotation=45)
-
-            for container in ax.containers:
-                ax.bar_label(container, fmt='%.2f', padding=3, fontsize=10)
-
-            plt.tight_layout()
+            fig = comparison_figure(
+                [m[0] for m in models], [m[columns[metric]] for m in models], metric=metric,
+                title=f"Model comparison: {metric}", lower_is_better=metric in _LOWER_IS_BETTER,
+                footnote="Measured on the held-out test split.",
+            )
             self._save_and_show(fig, save_path=save_path, show_plot=show_plot)
 
     def get_summary(

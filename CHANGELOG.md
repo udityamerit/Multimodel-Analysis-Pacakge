@@ -10,6 +10,7 @@
 - `ModelSpec` gained `default` (part of the standard set?) and `available` (is the optional package installed?). New `default_models()` and `available_models(installed_only=False)`.
 - SVR, Linear SVR and the MLP regressor standardise the target internally.
 - New notebook `examples/phase5_more_models.ipynb` with executed output.
+- `plot_comparison` redesigned: one clean ranked bar chart (best model on top, value on every bar). It shows F1 Score / R2 Score by default; pick another with `metric=`. The old grouped bars were unreadable with 17+ models.
 
 ## 0.3.0 - Phase 4: hyper-parameter tuning
 

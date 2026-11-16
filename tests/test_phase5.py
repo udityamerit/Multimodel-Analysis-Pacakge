@@ -132,3 +132,32 @@ def test_cross_validation_and_save_work_for_extras(clf, tmp_path):
     from multimodel_analysis import load_model
     X, _ = load_breast_cancer(return_X_y=True)
     assert np.array_equal(load_model(path).predict(X[:5]), clf.predict(X[:5], model="Hist Gradient Boosting"))
+
+
+def test_comparison_plot_ranks_models_on_one_metric(clf, reg, tmp_path):
+    clf_models = clf.run_all_models(include=["logistic_regression", "knn", "extra_trees", "mlp"])
+    clf.plot_comparison(clf_models, save_path=str(tmp_path / "clf.png"), show_plot=False)
+    clf.plot_comparison(clf_models, save_path=str(tmp_path / "clf_acc.png"), show_plot=False, metric="Accuracy")
+    reg_models = reg.run_all_models(include=["linear_regression", "elastic_net", "huber"])
+    reg.plot_comparison(reg_models, save_path=str(tmp_path / "reg.png"), show_plot=False, metric="RMSE")
+    for name in ("clf.png", "clf_acc.png", "reg.png"):
+        assert (tmp_path / name).stat().st_size > 3000
+    with pytest.raises(ValueError):
+        clf.plot_comparison(clf_models, show_plot=False, metric="Nope")
+    with pytest.raises(ValueError):
+        reg.plot_comparison(reg_models, show_plot=False, metric="Fit Time (s)")
+
+
+def test_comparison_figure_handles_ties_missing_values_and_one_model():
+    import matplotlib.pyplot as plt
+
+    from multimodel_analysis.core.plotting import comparison_figure
+    for names, values, lower in [(["a", "b", "c"], [0.9, 0.9, 0.9], False),
+                                 (["a", "b", "c"], [np.nan, 0.5, -0.2], False),
+                                 (["a", "b"], [3.0, 1.0], True),
+                                 (["only"], [0.5], False)]:
+        fig = comparison_figure(names, values, metric="m", title="t", lower_is_better=lower)
+        labels = [t.get_text() for t in fig.axes[0].get_yticklabels()]
+        if lower and values == [3.0, 1.0]:
+            assert labels[0] == "b"
+        plt.close(fig)
