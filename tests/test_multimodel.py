@@ -309,3 +309,53 @@ def test_custom_sklearn_estimator_instance_is_used():
     clf = MultiModelClassifier(X, y, verbose=False)
     models = clf.run_all_models(custom_models={"LR-C0.1": LogisticRegression(C=0.1)})
     assert models[-1][0] == "LR-C0.1"
+
+
+# ----------------------------------------------------------------- Phase 2: registry / structure
+def test_old_import_paths_still_work():
+    from multimodel_analysis.multimodel import MultiModelClassifier as OldClf
+    from multimodel_analysis.multimodel import MultiModelRegressior as OldReg
+    from multimodel_analysis.multimodel import save_report as old_save
+    from multimodel_analysis.supervised import MultiModelClassifier as NewClf
+    assert OldClf is NewClf is MultiModelClassifier
+    assert OldReg is MultiModelRegressor
+    assert old_save is save_report
+
+
+def test_available_models_and_include_exclude():
+    assert "random_forest" in MultiModelClassifier.available_models()
+    assert "knn" in MultiModelRegressor.available_models()
+    X, y = make_classification(n_samples=80, n_features=4, random_state=0)
+    clf = MultiModelClassifier(X, y, verbose=False)
+
+    only = clf.run_all_models(include=["random_forest", "Logistic Regression"])
+    assert [m[0] for m in only] == ["Logistic Regression", "Random Forest"]
+
+    fewer = clf.run_all_models(exclude=["svm", "adaboost"])
+    assert len(fewer) == 6 and "SVM" not in [m[0] for m in fewer]
+
+    with pytest.raises(KeyError, match="Unknown model"):
+        clf.run_all_models(include=["not_a_model"])
+
+
+def test_run_model_by_name_with_params_and_get_fitted_model():
+    X, y = make_classification(n_samples=80, n_features=4, random_state=0)
+    clf = MultiModelClassifier(X, y, verbose=False)
+    res = clf.run_model("random_forest", n_estimators=7)
+    assert res[2] > 0
+    est = clf.get_model("Random Forest")
+    assert est.n_estimators == 7
+    assert clf.get_model("random_forest") is est
+    assert clf.fit_times_["Random Forest"] >= 0
+    preds = est.predict(clf.X_test_scaled)
+    assert len(preds) == len(clf.y_test)
+    with pytest.raises(KeyError):
+        clf.get_model("nope")
+
+
+def test_run_all_models_stores_estimators_for_regressor():
+    X, y = make_regression(n_samples=80, n_features=4, random_state=0)
+    reg = MultiModelRegressor(X, y, verbose=False)
+    models = reg.run_all_models(custom_models={"MyLR": __import__("sklearn.linear_model", fromlist=["Ridge"]).Ridge()})
+    assert set(reg.estimators_) == {m[0] for m in models}
+    assert "MyLR" in reg.estimators_

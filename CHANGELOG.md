@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0.dev0 - Phase 2: package restructure
+
+- Code split into `multimodel_analysis/core` (base, registry, utils) and `multimodel_analysis/supervised` (classification, regression). `multimodel_analysis.multimodel` remains as a compatibility shim; all old imports and method names still work.
+- Model registry (`ModelSpec`, `ModelRegistry`): every built-in model is one registry entry (key, display name, factory, defaults).
+- New: `run_model(name, **params)`, `available_models()`, `get_model(name)`, `run_all_models(include=, exclude=)`, `estimators_` (fitted models) and `fit_times_`.
+
 ## 0.1.4 - Phase 0/1: bug fixes and packaging
 
 ### Behaviour changes (read these)
