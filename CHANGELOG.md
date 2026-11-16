@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1 - Phase 8: documentation
+
+- New `readme.md` (also the PyPI page): what the package is, install and extras, a 30-second first run, the shared workflow of all five analysers and a map of the docs.
+- New `docs/` guides for beginners and developers: getting started, classification and regression (with tuning), clustering, anomaly detection, dimensionality reduction, explainability, reports / HTML report / save and load, and an FAQ.
+- `docs/models.md` (every model key, standard or extra, optional package, tuned parameters) and `docs/api.md` (every public method with its signature) are generated from the code by `python tools/build_api_docs.py`; a test fails if they go stale.
+- Removed `func_code.md`, which described the pre-0.2 API; `docs/api.md` replaces it.
+- No behaviour change in the library.
+
 ## 0.6.0 - Phase 7: anomaly detection, dimensionality reduction, explainability, HTML report
 
 - New `MultiModelAnomalyDetector(X, y=None, contamination=None)`: Isolation Forest, Local Outlier Factor, One-Class SVM, Elliptic Envelope, KNN Distance and Robust Z-Score (opt-in: SGD One-Class SVM). Every model flags the same share of rows (`contamination`: from `y` when given, else 5%), so the models are comparable. Optional true labels `y` (0 / 1) add Precision, Recall, F1, ROC AUC and Average Precision; without labels the report shows `Agreement` (how much a model sees the data like the others).

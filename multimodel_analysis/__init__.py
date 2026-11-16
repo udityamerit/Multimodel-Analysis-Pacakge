@@ -6,7 +6,7 @@ from .multimodel import MultiModelRegressior
 from .supervised import MultiModelClassifier, MultiModelRegressor
 from .unsupervised import MultiModelAnomalyDetector, MultiModelClusterer, MultiModelReducer
 
-__version__ = '0.6.0'
+__version__ = '0.6.1'
 __author__ = 'Uditya Narayan Tiwari'
 
 __all__ = [
