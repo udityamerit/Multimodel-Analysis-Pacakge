@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - Phase 5: more models and optional boosters
+
+- New opt-in models. `run_all_models()` still runs the same standard set; use `include=[...]` for specific ones or `include='all'` for every model whose package is installed.
+  - Classification: Extra Trees, Hist Gradient Boosting, Neural Network (MLP), Linear Discriminant Analysis, Ridge Classifier, Linear SVM.
+  - Regression: Elastic Net, Bayesian Ridge, Huber Regressor, Linear SVR, Extra Trees, Hist Gradient Boosting, Neural Network (MLP).
+  - Optional boosters (classification and regression): XGBoost, LightGBM, CatBoost - `pip install multimodel_analysis[boost]`. A missing package is skipped by `include='all'` and reported with an install hint when asked for by name.
+- Every new model has a search space, so `tune_models`, `cross_validate_models`, `predict` and `save_model` work with them. `class_weight='balanced'` reaches Extra Trees, Ridge Classifier, Linear SVM and LightGBM.
+- `ModelSpec` gained `default` (part of the standard set?) and `available` (is the optional package installed?). New `default_models()` and `available_models(installed_only=False)`.
+- SVR, Linear SVR and the MLP regressor standardise the target internally.
+- New notebook `examples/phase5_more_models.ipynb` with executed output.
+
 ## 0.3.0 - Phase 4: hyper-parameter tuning
 
 - `tune_models(include=, exclude=, search='random'|'grid'|'halving', n_iter=20, cv=5, scoring=, param_grids=)`: tunes each model on the training split with leak-free CV (preprocessing is refitted inside every fold) and returns the same report tuples as `run_all_models`, so `show_tabular_report`, `predict`, plots and `save_model` work on tuned models.

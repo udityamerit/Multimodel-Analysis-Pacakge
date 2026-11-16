@@ -5,7 +5,7 @@ from .core.utils import save_report
 from .multimodel import MultiModelRegressior
 from .supervised import MultiModelClassifier, MultiModelRegressor
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 __author__ = 'Uditya Narayan Tiwari'
 
 __all__ = [

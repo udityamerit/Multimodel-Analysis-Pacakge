@@ -6,12 +6,19 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.compose import TransformedTargetRegressor
-from sklearn.ensemble import AdaBoostRegressor, GradientBoostingRegressor, RandomForestRegressor
-from sklearn.linear_model import Lasso, LinearRegression, Ridge
+from sklearn.ensemble import (
+    AdaBoostRegressor,
+    ExtraTreesRegressor,
+    GradientBoostingRegressor,
+    HistGradientBoostingRegressor,
+    RandomForestRegressor,
+)
+from sklearn.linear_model import BayesianRidge, ElasticNet, HuberRegressor, Lasso, LinearRegression, Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVR
+from sklearn.svm import SVR, LinearSVR
 from sklearn.tree import DecisionTreeRegressor
 
 from ..core.base import _BaseMultiModel
@@ -24,9 +31,30 @@ def _knn_reg(ctx, n_neighbors=None, **kw):
     return KNeighborsRegressor(n_neighbors=n, n_jobs=ctx.n_jobs, **kw)
 
 
+def _target_scaled(estimator):
+    """Wraps ``estimator`` so the target is standardised internally (needed by SVR, LinearSVR and MLP)."""
+    return TransformedTargetRegressor(regressor=estimator, transformer=StandardScaler())
+
+
 def _svr(ctx, **p):
     # SVR is sensitive to the target scale, so the target is standardised internally.
-    return TransformedTargetRegressor(regressor=SVR(**p), transformer=StandardScaler())
+    return _target_scaled(SVR(**p))
+
+
+def _xgb_reg(ctx, **p):
+    from xgboost import XGBRegressor
+    return XGBRegressor(random_state=ctx.random_state, n_jobs=ctx.n_jobs, verbosity=0, **p)
+
+
+def _lgbm_reg(ctx, **p):
+    from lightgbm import LGBMRegressor
+    return LGBMRegressor(random_state=ctx.random_state, n_jobs=ctx.n_jobs, verbose=-1, **p)
+
+
+def _cat_reg(ctx, **p):
+    from catboost import CatBoostRegressor
+    return CatBoostRegressor(random_seed=ctx.random_state, thread_count=ctx.n_jobs, verbose=0,
+                             allow_writing_files=False, **p)
 
 
 REGRESSOR_REGISTRY = ModelRegistry([
@@ -61,6 +89,52 @@ REGRESSOR_REGISTRY = ModelRegistry([
               lambda ctx, **p: AdaBoostRegressor(random_state=ctx.random_state, **p),
               defaults={"n_estimators": 50},
               search_space={"n_estimators": [25, 50, 100, 200], "learning_rate": [0.01, 0.1, 0.5, 1.0]}),
+
+    # ---- extra models (Phase 5): run with include=[...] or include='all' ------------------------
+    ModelSpec("elastic_net", "Elastic Net",
+              lambda ctx, **p: ElasticNet(random_state=ctx.random_state, **p),
+              defaults={"alpha": 0.1, "l1_ratio": 0.5}, default=False,
+              search_space={"alpha": [0.001, 0.01, 0.1, 1, 10], "l1_ratio": [0.1, 0.3, 0.5, 0.7, 0.9]}),
+    ModelSpec("bayesian_ridge", "Bayesian Ridge", lambda ctx, **p: BayesianRidge(**p), default=False,
+              search_space={"alpha_1": [1e-7, 1e-6, 1e-5], "alpha_2": [1e-7, 1e-6, 1e-5],
+                            "lambda_1": [1e-7, 1e-6, 1e-5], "lambda_2": [1e-7, 1e-6, 1e-5]}),
+    ModelSpec("huber", "Huber Regressor", lambda ctx, **p: HuberRegressor(**p),
+              defaults={"max_iter": 500}, default=False,
+              search_space={"epsilon": [1.1, 1.35, 1.5, 2.0], "alpha": [1e-5, 1e-4, 1e-3, 1e-2]}),
+    ModelSpec("linear_svr", "Linear SVR",
+              lambda ctx, **p: _target_scaled(LinearSVR(random_state=ctx.random_state, **p)),
+              defaults={"max_iter": 5000, "dual": "auto"}, param_prefix="regressor__", default=False,
+              search_space={"C": [0.1, 1, 10, 100], "epsilon": [0.0, 0.1, 0.5]}),
+    ModelSpec("extra_trees", "Extra Trees Regressor",
+              lambda ctx, **p: ExtraTreesRegressor(random_state=ctx.random_state, n_jobs=ctx.n_jobs, **p),
+              defaults={"n_estimators": 200}, default=False,
+              search_space={"n_estimators": [100, 200, 300], "max_depth": [None, 5, 10, 20],
+                            "min_samples_split": [2, 5, 10], "min_samples_leaf": [1, 2, 4]}),
+    ModelSpec("hist_gradient_boosting", "Hist Gradient Boosting Regressor",
+              lambda ctx, **p: HistGradientBoostingRegressor(random_state=ctx.random_state, **p), default=False,
+              search_space={"learning_rate": [0.03, 0.1, 0.2], "max_iter": [100, 200, 300],
+                            "max_depth": [None, 3, 6], "l2_regularization": [0.0, 0.1, 1.0]}),
+    ModelSpec("mlp", "Neural Network Regressor (MLP)",
+              lambda ctx, **p: _target_scaled(MLPRegressor(random_state=ctx.random_state, **p)),
+              defaults={"hidden_layer_sizes": (64,), "max_iter": 500}, param_prefix="regressor__", default=False,
+              search_space={"hidden_layer_sizes": [(32,), (64,), (64, 32)], "alpha": [1e-5, 1e-4, 1e-3, 1e-2],
+                            "learning_rate_init": [1e-3, 1e-2]}),
+
+    # ---- optional boosters: pip install xgboost / lightgbm / catboost -----------------------------
+    ModelSpec("xgboost", "XGBoost Regressor", _xgb_reg, requires="xgboost", default=False,
+              defaults={"n_estimators": 200, "learning_rate": 0.1},
+              search_space={"n_estimators": [100, 200, 400], "learning_rate": [0.03, 0.1, 0.2],
+                            "max_depth": [3, 4, 6, 8], "subsample": [0.7, 0.85, 1.0],
+                            "colsample_bytree": [0.7, 0.85, 1.0]}),
+    ModelSpec("lightgbm", "LightGBM Regressor", _lgbm_reg, requires="lightgbm", default=False,
+              defaults={"n_estimators": 200, "learning_rate": 0.1},
+              search_space={"n_estimators": [100, 200, 400], "learning_rate": [0.03, 0.1, 0.2],
+                            "num_leaves": [15, 31, 63], "subsample": [0.7, 0.85, 1.0],
+                            "colsample_bytree": [0.7, 0.85, 1.0]}),
+    ModelSpec("catboost", "CatBoost Regressor", _cat_reg, requires="catboost", default=False,
+              defaults={"iterations": 300, "learning_rate": 0.1},
+              search_space={"iterations": [200, 300, 500], "learning_rate": [0.03, 0.1, 0.2],
+                            "depth": [4, 6, 8]}),
 ])
 
 

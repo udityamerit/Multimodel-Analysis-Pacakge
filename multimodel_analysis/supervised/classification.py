@@ -6,8 +6,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from sklearn.ensemble import AdaBoostClassifier, GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import (
+    AdaBoostClassifier,
+    ExtraTreesClassifier,
+    GradientBoostingClassifier,
+    HistGradientBoostingClassifier,
+    RandomForestClassifier,
+)
+from sklearn.linear_model import LogisticRegression, RidgeClassifier
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -20,8 +27,9 @@ from sklearn.metrics import (
 )
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import LabelEncoder
-from sklearn.svm import SVC
+from sklearn.svm import SVC, LinearSVC
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.multiclass import type_of_target
 
@@ -40,6 +48,22 @@ def _cw(ctx, params):
 def _knn_clf(ctx, n_neighbors=None, **kw):
     n = n_neighbors if n_neighbors is not None else min(10, max(1, ctx.n_train - 1))
     return KNeighborsClassifier(n_neighbors=n, n_jobs=ctx.n_jobs, **kw)
+
+
+def _xgb_clf(ctx, **p):
+    from xgboost import XGBClassifier
+    return XGBClassifier(random_state=ctx.random_state, n_jobs=ctx.n_jobs, verbosity=0, **p)
+
+
+def _lgbm_clf(ctx, **p):
+    from lightgbm import LGBMClassifier
+    return LGBMClassifier(random_state=ctx.random_state, n_jobs=ctx.n_jobs, verbose=-1, **_cw(ctx, p))
+
+
+def _cat_clf(ctx, **p):
+    from catboost import CatBoostClassifier
+    return CatBoostClassifier(random_seed=ctx.random_state, thread_count=ctx.n_jobs, verbose=0,
+                              allow_writing_files=False, **p)
 
 
 CLASSIFIER_REGISTRY = ModelRegistry([
@@ -75,6 +99,47 @@ CLASSIFIER_REGISTRY = ModelRegistry([
               lambda ctx, **p: AdaBoostClassifier(random_state=ctx.random_state, **p),
               defaults={"n_estimators": 50},
               search_space={"n_estimators": [25, 50, 100, 200], "learning_rate": [0.01, 0.1, 0.5, 1.0]}),
+
+    # ---- extra models (Phase 5): run with include=[...] or include='all' ------------------------
+    ModelSpec("extra_trees", "Extra Trees",
+              lambda ctx, **p: ExtraTreesClassifier(random_state=ctx.random_state, n_jobs=ctx.n_jobs, **_cw(ctx, p)),
+              defaults={"n_estimators": 200}, default=False,
+              search_space={"n_estimators": [100, 200, 300], "max_depth": [None, 5, 10, 20],
+                            "min_samples_split": [2, 5, 10], "min_samples_leaf": [1, 2, 4]}),
+    ModelSpec("hist_gradient_boosting", "Hist Gradient Boosting",
+              lambda ctx, **p: HistGradientBoostingClassifier(random_state=ctx.random_state, **p), default=False,
+              search_space={"learning_rate": [0.03, 0.1, 0.2], "max_iter": [100, 200, 300],
+                            "max_depth": [None, 3, 6], "l2_regularization": [0.0, 0.1, 1.0]}),
+    ModelSpec("mlp", "Neural Network (MLP)",
+              lambda ctx, **p: MLPClassifier(random_state=ctx.random_state, **p),
+              defaults={"hidden_layer_sizes": (64,), "max_iter": 500}, default=False,
+              search_space={"hidden_layer_sizes": [(32,), (64,), (64, 32)], "alpha": [1e-5, 1e-4, 1e-3, 1e-2],
+                            "learning_rate_init": [1e-3, 1e-2]}),
+    ModelSpec("lda", "Linear Discriminant Analysis", lambda ctx, **p: LinearDiscriminantAnalysis(**p), default=False,
+              search_space={"solver": ["svd", "lsqr", "eigen"]}),
+    ModelSpec("ridge_classifier", "Ridge Classifier",
+              lambda ctx, **p: RidgeClassifier(random_state=ctx.random_state, **_cw(ctx, p)), default=False,
+              search_space={"alpha": [0.01, 0.1, 1, 10, 100]}),
+    ModelSpec("linear_svm", "Linear SVM",
+              lambda ctx, **p: LinearSVC(random_state=ctx.random_state, **_cw(ctx, p)),
+              defaults={"max_iter": 5000, "dual": "auto"}, default=False,
+              search_space={"C": [0.01, 0.1, 1, 10, 100]}),
+
+    # ---- optional boosters: pip install xgboost / lightgbm / catboost -----------------------------
+    ModelSpec("xgboost", "XGBoost", _xgb_clf, requires="xgboost", default=False,
+              defaults={"n_estimators": 200, "learning_rate": 0.1},
+              search_space={"n_estimators": [100, 200, 400], "learning_rate": [0.03, 0.1, 0.2],
+                            "max_depth": [3, 4, 6, 8], "subsample": [0.7, 0.85, 1.0],
+                            "colsample_bytree": [0.7, 0.85, 1.0]}),
+    ModelSpec("lightgbm", "LightGBM", _lgbm_clf, requires="lightgbm", default=False,
+              defaults={"n_estimators": 200, "learning_rate": 0.1},
+              search_space={"n_estimators": [100, 200, 400], "learning_rate": [0.03, 0.1, 0.2],
+                            "num_leaves": [15, 31, 63], "subsample": [0.7, 0.85, 1.0],
+                            "colsample_bytree": [0.7, 0.85, 1.0]}),
+    ModelSpec("catboost", "CatBoost", _cat_clf, requires="catboost", default=False,
+              defaults={"iterations": 300, "learning_rate": 0.1},
+              search_space={"iterations": [200, 300, 500], "learning_rate": [0.03, 0.1, 0.2],
+                            "depth": [4, 6, 8]}),
 ])
 
 

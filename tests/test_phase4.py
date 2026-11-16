@@ -14,7 +14,11 @@ def test_every_builtin_model_has_a_search_space_that_matches_its_estimator():
     ctx = BuildContext(random_state=0, n_jobs=1, n_train=100)
     for registry in (CLASSIFIER_REGISTRY, REGRESSOR_REGISTRY):
         for spec in registry:
+            if not spec.available:  # optional booster not installed
+                continue
             assert spec.search_space, f"{spec.name} has no search space"
+            if spec.key == "catboost":  # get_params() only lists explicitly set values; covered by a tuning test
+                continue
             est = spec.build(ctx)
             valid = est.get_params()
             for param in spec.search_space:

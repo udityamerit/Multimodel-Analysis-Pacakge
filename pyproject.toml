@@ -27,7 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.0"]
-boost = ["xgboost>=1.7", "lightgbm>=3.3"]
+boost = ["xgboost>=1.7", "lightgbm>=3.3", "catboost>=1.2"]
 dev = ["pytest>=7", "ruff>=0.4", "openpyxl>=3.0"]
 
 [project.urls]

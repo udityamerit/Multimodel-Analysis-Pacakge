@@ -1,4 +1,5 @@
 """Model registry: one ``ModelSpec`` per built-in model so adding a model is a one-line change."""
+import importlib.util
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional
 
@@ -25,6 +26,8 @@ class ModelSpec:
                   (e.g. ``'regressor__'`` for a TransformedTargetRegressor); keys in ``search_space``
                   and ``**params`` stay un-prefixed.
     requires      optional third-party package needed, if any (e.g. ``'xgboost'``).
+    default       ``True`` = part of the standard ``run_all_models()`` set; ``False`` = extra model that
+                  runs only when asked for with ``include=[...]`` or ``include='all'``.
     """
     key: str
     name: str
@@ -33,8 +36,19 @@ class ModelSpec:
     search_space: Dict[str, Any] = field(default_factory=dict)
     requires: Optional[str] = None
     param_prefix: str = ""
+    default: bool = True
+
+    @property
+    def available(self) -> bool:
+        """``False`` when the optional package this model needs is not installed."""
+        return self.requires is None or importlib.util.find_spec(self.requires) is not None
 
     def build(self, ctx: BuildContext, **params):
+        if not self.available:
+            raise ImportError(
+                f"'{self.name}' needs the optional package '{self.requires}'. "
+                f"Install it with: pip install {self.requires}"
+            )
         return self.factory(ctx, **{**self.defaults, **params})
 
 
@@ -82,10 +96,21 @@ class ModelRegistry:
                 return spec
         raise KeyError(f"Unknown model '{ref}'. Available models: {self.keys()}")
 
-    def select(self, include: Optional[Iterable] = None, exclude: Optional[Iterable] = None) -> List[ModelSpec]:
-        """Returns specs filtered by ``include`` (keep only these) and ``exclude`` (drop these), keeping order."""
+    def select(self, include=None, exclude: Optional[Iterable] = None) -> List[ModelSpec]:
+        """Returns specs filtered by ``include`` and ``exclude``, keeping registry order.
+
+        ``include=None``   the standard set (``default=True`` models).
+        ``include='all'``  every model whose optional package is installed.
+        ``include=[...]``  exactly these models (a missing optional package is reported when it runs).
+        """
         specs = list(self._specs.values())
-        if include is not None:
+        if include is None:
+            specs = [s for s in specs if s.default]
+        elif isinstance(include, str) and _norm(include) == "all":
+            specs = [s for s in specs if s.available]
+        else:
+            if isinstance(include, (str, ModelSpec)):
+                include = [include]
             wanted = [self.resolve(r).key for r in include]
             specs = [s for s in specs if s.key in wanted]
         if exclude is not None:

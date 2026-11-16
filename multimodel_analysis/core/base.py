@@ -120,9 +120,18 @@ class _BaseMultiModel:
         return self._run_spec(name, random_state=random_state, **params)
 
     @classmethod
-    def available_models(cls) -> List[str]:
-        """Keys of the built-in models, usable in ``run_model`` / ``include`` / ``exclude``."""
-        return cls.registry.keys()
+    def available_models(cls, installed_only: bool = False) -> List[str]:
+        """Keys of the built-in models, usable in ``run_model`` / ``include`` / ``exclude``.
+
+        Includes the extra models that ``run_all_models()`` skips by default; with ``installed_only=True``
+        models whose optional package (xgboost, lightgbm, catboost) is missing are left out.
+        """
+        return [s.key for s in cls.registry if s.available or not installed_only]
+
+    @classmethod
+    def default_models(cls) -> List[str]:
+        """Keys of the models ``run_all_models()`` runs when ``include`` is not given."""
+        return [s.key for s in cls.registry if s.default]
 
     def get_model(self, name: str) -> Any:
         """Returns the FITTED estimator for ``name`` (display name, as shown in the report)."""
