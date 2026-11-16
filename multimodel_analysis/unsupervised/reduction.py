@@ -55,8 +55,41 @@ def _kernel_pca(ctx: BuildContext, **p):
     return KernelPCA(random_state=ctx.random_state, n_jobs=ctx.n_jobs, **p)
 
 
+class _StableFastICA(FastICA):
+    """FastICA that ignores constant columns while fitting.
+
+    A constant column (e.g. a pixel that is always 0) makes the whitening step rank-deficient, which can make
+    the underlying LAPACK call fail on some machines. The fitted weights are zero-padded back to the full
+    width, so ``transform`` and ``components_`` still work on the original columns.
+    """
+
+    def fit_transform(self, X, y=None):
+        X = np.asarray(X, dtype=float)
+        keep = X.std(axis=0) > 1e-10
+        if keep.all():
+            return super().fit_transform(X, y)
+        sources = super().fit_transform(X[:, keep], y)
+        width = X.shape[1]
+        comp = np.zeros((self.components_.shape[0], width))
+        comp[:, keep] = self.components_
+        self.components_ = comp
+        mix = np.zeros((width, self.mixing_.shape[1]))
+        mix[keep] = self.mixing_
+        self.mixing_ = mix
+        if getattr(self, "mean_", None) is not None:
+            mean = np.zeros(width)
+            mean[keep] = self.mean_
+            self.mean_ = mean
+        self.n_features_in_ = width
+        return sources
+
+    def fit(self, X, y=None):
+        self.fit_transform(X, y)
+        return self
+
+
 def _fastica(ctx: BuildContext, **p):
-    return FastICA(random_state=ctx.random_state, **p)
+    return _StableFastICA(random_state=ctx.random_state, **p)
 
 
 def _factor(ctx: BuildContext, **p):
