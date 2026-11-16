@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 - Phase 6: clustering (unsupervised learning)
+
+- New `MultiModelClusterer(X, y=None, n_clusters=3 | 'auto', scaled_data=True, preprocess=False)`: runs clustering algorithms on one dataset, scores them and recommends the best. `y` (optional true labels) is never used for fitting, only to add external scores (ARI, NMI, V-measure, Homogeneity, Completeness).
+  - Standard set: KMeans, MiniBatch KMeans, Agglomerative (Ward), Gaussian Mixture, Birch, Spectral, DBSCAN. Opt-in: Bisecting KMeans, Agglomerative (average / complete), HDBSCAN, OPTICS, Mean Shift, Affinity Propagation (`include=[...]` or `include='all'`).
+  - Internal scores: Silhouette, Calinski-Harabasz, Davies-Bouldin. Noise points (label -1) are reported and left out of the scores; a result with fewer than 2 clusters gets N/A and a warning instead of a crash.
+  - DBSCAN `eps` and Mean Shift bandwidth are chosen from the data (`auto_params_`). Models that need O(n^2) memory are skipped on large data unless `allow_large=True`.
+  - `find_optimal_k()` / `n_clusters='auto'`, `tune_models(scoring=, param_grids=)`, `assign_clusters()`, `cluster_profile()`, `get_labels()`.
+  - `predict(X_new)`, `export_model()`, `save_model()` for models that support it (KMeans, Gaussian Mixture, Birch, ...), with a clear error for the ones that cannot label new rows.
+  - Plots: `plot_comparison`, `plot_clusters` (PCA for more than 2 features), `plot_k_search`, `plot_silhouette`, `get_summary`.
+- Internal: reporting helpers shared by all analysers moved to `core/mixins.py`; feature validation split out as `_validate_features`.
+- New notebook `examples/phase6_clustering.ipynb` with executed output.
+
 ## 0.4.0 - Phase 5: more models and optional boosters
 
 - New opt-in models. `run_all_models()` still runs the same standard set; use `include=[...]` for specific ones or `include='all'` for every model whose package is installed.

@@ -41,6 +41,41 @@ def _apply_plot_style():
             yield
 
 
+def _validate_features(X: Any, preprocess: bool = False) -> None:
+    """Checks that ``X`` is numeric and finite (skipped when automatic preprocessing will handle it).
+
+    With ``preprocess=True`` missing values and text columns are allowed (they get imputed / encoded);
+    infinite values are still rejected.
+    """
+    if preprocess:
+        if isinstance(X, pd.DataFrame):
+            numeric = X.select_dtypes(include="number")
+            n_inf = int(np.isinf(numeric.to_numpy(dtype=float)).sum()) if numeric.shape[1] else 0
+            if n_inf:
+                raise ValueError(f"X contains {n_inf} infinite value(s). Replace or drop them first.")
+        return
+
+    if isinstance(X, pd.DataFrame):
+        non_numeric = [str(c) for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
+        if non_numeric:
+            raise ValueError(
+                f"X contains non-numeric column(s): {non_numeric[:10]}. Encode them first "
+                "(e.g. pd.get_dummies(X)) - text/categorical columns cannot be fed to the models directly."
+            )
+        values = X.to_numpy(dtype=float)
+    else:
+        try:
+            values = np.asarray(X, dtype=float)
+        except (ValueError, TypeError):
+            raise ValueError("X contains non-numeric values. Encode categorical/text features first.") from None
+    if not np.isfinite(values).all():
+        n_bad = int((~np.isfinite(values)).sum())
+        raise ValueError(
+            f"X contains {n_bad} missing (NaN) or infinite value(s). Impute or drop them first "
+            "(e.g. X.fillna(X.median()))."
+        )
+
+
 def _validate_inputs(X: Any, y: Any, test_size: Union[int, float], preprocess: bool = False) -> np.ndarray:
     """Validates features / target / test_size and returns the flattened target array.
 
@@ -79,34 +114,7 @@ def _validate_inputs(X: Any, y: Any, test_size: Union[int, float], preprocess: b
     else:
         raise TypeError(f"test_size must be a float or an int, got {type(test_size).__name__}.")
 
-    # --- features: numeric, finite (skipped when automatic preprocessing will handle them) ---
-    if preprocess:
-        if isinstance(X, pd.DataFrame):
-            numeric = X.select_dtypes(include="number")
-            n_inf = int(np.isinf(numeric.to_numpy(dtype=float)).sum()) if numeric.shape[1] else 0
-            if n_inf:
-                raise ValueError(f"X contains {n_inf} infinite value(s). Replace or drop them first.")
-        return y_flat
-
-    if isinstance(X, pd.DataFrame):
-        non_numeric = [str(c) for c in X.columns if not pd.api.types.is_numeric_dtype(X[c])]
-        if non_numeric:
-            raise ValueError(
-                f"X contains non-numeric column(s): {non_numeric[:10]}. Encode them first "
-                "(e.g. pd.get_dummies(X)) - text/categorical columns cannot be fed to the models directly."
-            )
-        values = X.to_numpy(dtype=float)
-    else:
-        try:
-            values = np.asarray(X, dtype=float)
-        except (ValueError, TypeError):
-            raise ValueError("X contains non-numeric values. Encode categorical/text features first.") from None
-    if not np.isfinite(values).all():
-        n_bad = int((~np.isfinite(values)).sum())
-        raise ValueError(
-            f"X contains {n_bad} missing (NaN) or infinite value(s). Impute or drop them first "
-            "(e.g. X.fillna(X.median()))."
-        )
+    _validate_features(X, preprocess)
     return y_flat
 
 
