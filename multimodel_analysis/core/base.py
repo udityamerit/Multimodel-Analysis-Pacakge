@@ -59,6 +59,8 @@ class _BaseMultiModel:
         self.fit_times_ = {}
         self._last_df_report = None
         self.cv_results_ = None
+        self.best_params_ = {}
+        self.tuning_results_ = None
 
         self.scaler = StandardScaler()
         self.transformer_ = None  # fitted scaler / preprocessor (None when scaled_data=False and preprocess=False)
@@ -99,13 +101,16 @@ class _BaseMultiModel:
     def _run_spec(self, ref: Any, random_state: Optional[int] = None, **params):
         """Builds the registered model ``ref`` (key, display name or ModelSpec), fits and evaluates it."""
         spec = self.registry.resolve(ref)
-        ctx = BuildContext(
+        ctx = self._build_context(random_state)
+        return self._fit_and_evaluate(spec.build(ctx, **params), name=spec.name)
+
+    def _build_context(self, random_state: Optional[int] = None) -> BuildContext:
+        return BuildContext(
             random_state=random_state if random_state is not None else self.random_state,
             n_jobs=self.n_jobs,
             n_train=len(self.y_train),
             class_weight=getattr(self, "class_weight", None),
         )
-        return self._fit_and_evaluate(spec.build(ctx, **params), name=spec.name)
 
     def run_model(self, name: str, random_state: Optional[int] = None, **params) -> Tuple:
         """Runs ONE built-in model by key or display name, e.g. ``run_model('random_forest', n_estimators=300)``.
@@ -239,6 +244,94 @@ class _BaseMultiModel:
         """Saves a fitted model + its preprocessing to ``path`` (joblib). Reload with ``load_model(path)``."""
         return self.export_model(model).save(path)
 
+    def tune_models(
+        self,
+        include: Optional[List[str]] = None,
+        exclude: Optional[List[str]] = None,
+        search: str = "random",
+        n_iter: int = 20,
+        cv: Union[int, Any] = 5,
+        scoring: Optional[str] = None,
+        param_grids: Optional[Dict[str, Dict[str, List[Any]]]] = None,
+        random_state: Optional[int] = None,
+    ) -> List[Tuple]:
+        """Tunes hyper-parameters of the built-in models, then refits and evaluates each on the test split.
+
+        search       'random' (default, ``n_iter`` candidates), 'grid' (every combination) or 'halving'
+                     (successive halving: fast on big data).
+        cv, scoring  cross-validation folds and a scikit-learn scoring string (default: accuracy for
+                     classification, r2 for regression). The search runs on the TRAINING split only and
+                     preprocessing is re-fitted in every fold.
+        param_grids  optional ``{'random_forest': {'max_depth': [3, 5]}}`` to replace a model's default
+                     search space (see ``registry`` entries for the defaults).
+
+        Returns the usual list of evaluation tuples, so ``show_tabular_report()`` and the plots work on it.
+        ``best_params_`` holds the winning parameters per model and ``tuning_results_`` a summary DataFrame.
+        """
+        from sklearn.model_selection import GridSearchCV, ParameterGrid, RandomizedSearchCV
+        from sklearn.pipeline import Pipeline
+
+        if search not in ("random", "grid", "halving"):
+            raise ValueError("search must be 'random', 'grid' or 'halving'.")
+        if not isinstance(n_iter, (int, np.integer)) or n_iter < 1:
+            raise ValueError("n_iter must be a positive integer.")
+        scoring = scoring or self.default_scoring
+        overrides = {self.registry.resolve(k).key: v for k, v in (param_grids or {}).items()}
+        specs = self.registry.select(include, exclude)
+        ctx = self._build_context(random_state)
+        seed = ctx.random_state
+
+        self.best_params_ = {}
+        rows: List[Dict[str, Any]] = []
+
+        def make_runner(spec):
+            def run():
+                space = overrides.get(spec.key, spec.search_space)
+                if not space:
+                    raise ValueError("no search space is defined for this model; pass param_grids={...}.")
+                prefix = "model__" + spec.param_prefix
+                grid = {prefix + k: list(v) for k, v in space.items()}
+                transformer = self._make_transformer()
+                pipe = Pipeline([("prep", transformer if transformer is not None else "passthrough"),
+                                 ("model", spec.build(ctx))])
+                n_candidates = len(ParameterGrid(grid))
+                if search == "grid":
+                    searcher = GridSearchCV(pipe, grid, cv=cv, scoring=scoring, refit=False)
+                elif search == "halving":
+                    from sklearn.experimental import enable_halving_search_cv  # noqa: F401
+                    from sklearn.model_selection import HalvingRandomSearchCV
+                    searcher = HalvingRandomSearchCV(pipe, grid, n_candidates=min(n_iter, n_candidates), cv=cv,
+                                                     scoring=scoring, refit=False, random_state=seed)
+                else:
+                    searcher = RandomizedSearchCV(pipe, grid, n_iter=min(n_iter, n_candidates), cv=cv,
+                                                  scoring=scoring, refit=False, random_state=seed)
+                start = time.perf_counter()
+                with self._track_warnings(f"{spec.name} (tuning)"):
+                    searcher.fit(self.X_train_raw, self.y_train)
+                elapsed = time.perf_counter() - start
+                cut = len(prefix)
+                best = {k[cut:]: v for k, v in searcher.best_params_.items()}
+                self.best_params_[spec.name] = best
+                rows.append({"Model": spec.name, f"Best CV {scoring}": float(searcher.best_score_),
+                             "Best Params": best, "Candidates": len(searcher.cv_results_["params"]),
+                             "Search Time (s)": elapsed})
+                return self._fit_and_evaluate(spec.build(ctx, **best), name=spec.name)
+            return run
+
+        models = self._run_model_list([(spec.name, make_runner(spec)) for spec in specs], None)
+        df = pd.DataFrame(rows)
+        if not df.empty:
+            df = df.sort_values(by=f"Best CV {scoring}", ascending=False).reset_index(drop=True)
+        self.tuning_results_ = df
+        if self.verbose and not df.empty:
+            _safe_print(f"\n{'='*60}\n HYPER-PARAMETER TUNING ({search} search, {cv}-fold CV on the training "
+                        f"split) \n{'='*60}")
+            _safe_print(df.drop(columns=["Best Params"]).to_string(index=False, float_format=lambda v: f"{v:.4f}"))
+            for _, r in df.iterrows():
+                _safe_print(f"   {r['Model']}: {r['Best Params']}")
+            _safe_print(f"{'='*60}\n")
+        return models
+
     def cross_validate_models(
         self,
         cv: Union[int, Any] = 5,
@@ -259,10 +352,7 @@ class _BaseMultiModel:
         from sklearn.pipeline import make_pipeline
 
         scorers = [scoring] if isinstance(scoring, str) else list(scoring or [self.default_scoring])
-        ctx = BuildContext(
-            random_state=self.random_state, n_jobs=self.n_jobs, n_train=len(self.y_train),
-            class_weight=getattr(self, "class_weight", None),
-        )
+        ctx = self._build_context()
         candidates = [(spec.name, lambda spec=spec: spec.build(ctx)) for spec in self.registry.select(include, exclude)]
         for cname, inst in (custom_models or {}).items():
             candidates.append((cname, lambda inst=inst: clone(inst)))

@@ -20,7 +20,10 @@ class ModelSpec:
     name          display name used in reports, e.g. ``'Random Forest'``.
     factory       ``factory(ctx, **params) -> unfitted estimator``.
     defaults      default hyper-parameters (user ``**params`` override them).
-    search_space  hyper-parameter grid used by the tuning phase (may be empty).
+    search_space  ``{param: [candidate values]}`` used by ``tune_models`` (may be empty).
+    param_prefix  prefix needed to reach the estimator's parameters when the factory wraps it
+                  (e.g. ``'regressor__'`` for a TransformedTargetRegressor); keys in ``search_space``
+                  and ``**params`` stay un-prefixed.
     requires      optional third-party package needed, if any (e.g. ``'xgboost'``).
     """
     key: str
@@ -29,6 +32,7 @@ class ModelSpec:
     defaults: Dict[str, Any] = field(default_factory=dict)
     search_space: Dict[str, Any] = field(default_factory=dict)
     requires: Optional[str] = None
+    param_prefix: str = ""
 
     def build(self, ctx: BuildContext, **params):
         return self.factory(ctx, **{**self.defaults, **params})

@@ -12,4 +12,8 @@ env/
 venv/
 .DS_Store
 .ipynb_checkpoints/
+.coverage
+.idea/
+.vscode/
+*.joblib
 report.csv

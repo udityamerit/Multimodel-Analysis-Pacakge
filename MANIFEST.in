@@ -1,6 +1,7 @@
 include readme.md
 include LICENSE
 include requirements.txt
+include CHANGELOG.md
 prune dist
 prune examples
 prune tests
