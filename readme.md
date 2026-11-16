@@ -93,22 +93,22 @@ tool.save_html_report("report.html")
 
 | Read | For |
 |---|---|
-| [docs/getting-started.md](docs/getting-started.md) | install, the five classes, the shared workflow |
-| [docs/supervised.md](docs/supervised.md) | classification and regression, tuning |
-| [docs/clustering.md](docs/clustering.md) | grouping rows, choosing *k*, cluster profiles |
-| [docs/anomaly-detection.md](docs/anomaly-detection.md) | finding unusual rows, consensus |
-| [docs/dimensionality-reduction.md](docs/dimensionality-reduction.md) | 2-D maps, PCA, t-SNE, scores explained |
-| [docs/explainability.md](docs/explainability.md) | which features matter and how they act |
-| [docs/reports-and-persistence.md](docs/reports-and-persistence.md) | tables, plots, HTML report, save/load |
-| [docs/models.md](docs/models.md) | every model key, with defaults and search spaces |
-| [docs/api.md](docs/api.md) | every public method and its signature |
-| [docs/faq.md](docs/faq.md) | common questions and error messages |
+| [docs/getting-started.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/getting-started.md) | install, the five classes, the shared workflow |
+| [docs/supervised.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/supervised.md) | classification and regression, tuning |
+| [docs/clustering.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/clustering.md) | grouping rows, choosing *k*, cluster profiles |
+| [docs/anomaly-detection.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/anomaly-detection.md) | finding unusual rows, consensus |
+| [docs/dimensionality-reduction.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/dimensionality-reduction.md) | 2-D maps, PCA, t-SNE, scores explained |
+| [docs/explainability.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/explainability.md) | which features matter and how they act |
+| [docs/reports-and-persistence.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/reports-and-persistence.md) | tables, plots, HTML report, save/load |
+| [docs/models.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/models.md) | every model key, with defaults and search spaces |
+| [docs/api.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/api.md) | every public method and its signature |
+| [docs/faq.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/docs/faq.md) | common questions and error messages |
 
-Worked notebooks with real output are in [`examples/`](examples/).
+Worked notebooks with real output are in [`examples/`](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/examples/).
 
 ## Contributing and license
 
 Bug reports and pull requests are welcome. Run `pip install -e ".[dev]"` then `pytest` and
-`ruff check multimodel_analysis tests`. See [CHANGELOG.md](CHANGELOG.md) for the release history.
+`ruff check multimodel_analysis tests`. See [CHANGELOG.md](https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/CHANGELOG.md) for the release history.
 
 Released under the Apache-2.0 license. Author: Uditya Narayan Tiwari.

@@ -34,12 +34,16 @@ def test_every_model_key_is_documented():
             assert f"`{key}`" in text, f"{cls.__name__}: model '{key}' missing from docs/models.md"
 
 
+_BLOB = "https://github.com/udityamerit/Multimodel-Analysis-Pacakge/blob/main/"
 _LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 
 
 @pytest.mark.parametrize("page", sorted([ROOT / "readme.md", *DOCS.glob("*.md")]), ids=lambda p: p.name)
 def test_relative_links_exist(page):
     for target in _LINK.findall(page.read_text(encoding="utf-8")):
+        if target.startswith(_BLOB):  # the README uses absolute links so they work on PyPI
+            assert (ROOT / target[len(_BLOB):]).exists(), f"{page.name}: broken link -> {target}"
+            continue
         if target.startswith(("http://", "https://", "mailto:")):
             continue
         assert (page.parent / target).exists(), f"{page.name}: broken link -> {target}"
